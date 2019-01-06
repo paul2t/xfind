@@ -1,5 +1,5 @@
 // TODO:
-// Look for modified files to update the index.
+// Look for modified files to update the index. (partial)
 // Mouse click on the result list.
 // Search history
 // Paths history
@@ -56,6 +56,7 @@ struct Config
 	bool showProgram = true;
 	bool showFolderAndExt = true;
 	bool showRelativePaths = true;
+	bool showHiddenFiles = false;
 	float fontSize = 20.0f;
 	String fontFile;
 
@@ -64,6 +65,8 @@ struct Config
 	String ext;
 	String tool;
 };
+
+static Config config = {};
 
 String configKeys[] = {
 	make_lit_string("folders="),
@@ -74,14 +77,14 @@ String configKeys[] = {
 #define CONFIG_FILE_NAME "xfind.ini"
 Config readConfig(MemoryArena& arena)
 {
-	Config config = {};
-	config.content = readEntireFile(arena, CONFIG_FILE_NAME);
-	if (config.content.size)
+	Config conf = {};
+	conf.content = readEntireFile(arena, CONFIG_FILE_NAME);
+	if (conf.content.size)
 	{
 		TempMemory _tmp(arena);
 		i32 nbLines = 0;
-		String* lines = getLines(arena, config.content, nbLines, true, true, true);
-		String* oconfig = &config.path;
+		String* lines = getLines(arena, conf.content, nbLines, true, true, true);
+		String* oconfig = &conf.path;
 		for (i32 linei = 0; linei < nbLines; ++linei)
 		{
 			String line = lines[linei];
@@ -97,45 +100,49 @@ Config readConfig(MemoryArena& arena)
 			if (match_part(line, key))
 			{
 				char* end;
-				config.width = fastStringToU32(line.str + key.size, end);
+				conf.width = fastStringToU32(line.str + key.size, end);
 				++end;
-				config.height = fastStringToU32(end, end);
+				conf.height = fastStringToU32(end, end);
 				++end;
-				config.maximized = fastStringToU32(end, end);
+				conf.maximized = fastStringToU32(end, end);
 			}
 			String keyf = make_lit_string("font=");
 			if (match_part(line, keyf))
 			{
 				char* end;
-				config.fontSize = strtof(line.str + keyf.size, &end);
+				conf.fontSize = strtof(line.str + keyf.size, &end);
 				++end;
-				config.fontFile = substr(line, (i32)(end - line.str));
+				conf.fontFile = substr(line, (i32)(end - line.str));
 			}
 			if (match(line, make_lit_string("hide_program")))
-				config.showProgram = false;
+				conf.showProgram = false;
 			if (match(line, make_lit_string("hide_folder_and_ext")))
-				config.showFolderAndExt = false;
+				conf.showFolderAndExt = false;
 			if (match(line, make_lit_string("show_full_path")))
-				config.showRelativePaths = false;
+				conf.showRelativePaths = false;
+			if (match(line, make_lit_string("show_hidden_files")))
+				conf.showHiddenFiles = true;
 		}
 	}
-	return config;
+	return conf;
 }
 
-void writeConfig(Config config)
+void writeConfig(Config conf)
 {
 	FILE* configFile = fopen(CONFIG_FILE_NAME, "w");
 	if (configFile)
 	{
-		String* oconfig = &config.path;
-		fprintf(configFile, "window=%u %u %u\n", config.width, config.height, config.maximized);
-		fprintf(configFile, "font=%f %.*s\n", config.fontSize, strexp(config.fontFile));
-		if (!config.showProgram)
+		String* oconfig = &conf.path;
+		fprintf(configFile, "window=%u %u %u\n", conf.width, conf.height, conf.maximized);
+		fprintf(configFile, "font=%f %.*s\n", conf.fontSize, strexp(conf.fontFile));
+		if (!conf.showProgram)
 			fprintf(configFile, "hide_program\n");
-		if (!config.showFolderAndExt)
+		if (!conf.showFolderAndExt)
 			fprintf(configFile, "hide_folder_and_ext\n");
-		if (!config.showRelativePaths)
+		if (!conf.showRelativePaths)
 			fprintf(configFile, "show_full_path\n");
+		if (conf.showHiddenFiles)
+			fprintf(configFile, "show_hidden_files\n");
 			for (int ki = 0; ki < ArrayCount(configKeys); ++ki)
 		{
 			fprintf(configFile, "%.*s%.*s\n", strexp(configKeys[ki]), strexp(oconfig[ki]));
@@ -328,6 +335,7 @@ internal WORK_QUEUE_CALLBACK(workerLoadFileToMemory)
 	{
 		memid nitemsRead = fread(fileIndex->content.str, 1, fileIndex->content.memory_size-1, file);
 		fileIndex->content.size = (i32)nitemsRead;
+		terminate_with_null(&fileIndex->content);
 		fclose(file);
 	}
 	InterlockedDecrement(&indexingInProgress);
@@ -350,6 +358,8 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	if (workerIndexerShouldStop) return;
 	//u64 ticksStart = getTickCount();
 	indexArena.Release();
+
+	umm maxFileLength = MegaBytes(10);
 
 	IndexWorkerData* wdata = (IndexWorkerData*)data;
 	String* searchPaths = wdata->paths;
@@ -389,58 +399,68 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 			if (workerIndexerShouldStop) return;
 			if (current->found)
 			{
-				if (isDir(current))
+				if (!isHidden(current) || config.showHiddenFiles)
 				{
-
-					if (stackSize < ArrayCount(stack))
+					if (isDir(current))
 					{
-						searchPathSizeStack[stackSize - 1] = searchPath.size;
-						append(&searchPath, current->name);
+						if (stackSize < ArrayCount(stack))
+						{
+							searchPathSizeStack[stackSize - 1] = searchPath.size;
+							append(&searchPath, current->name);
 
-						// No already indexed
-						if (!findStringInArrayInsensitive(searchPaths, searchPathsSize, searchPath))
-						{
-							append(&searchPath, "\\*");
-							terminate_with_null(&searchPath);
-							current = stack + stackSize;
-							stackSize++;
-							dfind(current, searchPath.str);
-							searchPath.size--; // remove the '*'
-							continue;
-						}
-						searchPath.size = searchPathSizeStack[stackSize - 1];
-					}
-				}
-				else
-				{
-					if (filesSize < filesSizeLimit)
-					{
-						String filename = make_string_slowly(current->name);
-						String fileext = file_extension(filename);
-						bool matchext = false;
-						for (i32 ei = 0; ei < searchExtensionsSize; ++ei)
-						{
-							if (match(fileext, searchExtensions[ei]))
+							// No already indexed
+							if (!findStringInArrayInsensitive(searchPaths, searchPathsSize, searchPath))
 							{
-								matchext = true;
-								break;
+								append(&searchPath, "\\*");
+								terminate_with_null(&searchPath);
+								current = stack + stackSize;
+								stackSize++;
+								dfind(current, searchPath.str);
+								searchPath.size--; // remove the '*'
+								continue;
 							}
+							searchPath.size = searchPathSizeStack[stackSize - 1];
 						}
-						if (matchext)
+					}
+					else
+					{
+						if (filesSize < filesSizeLimit)
 						{
-							String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
-							append(&file, searchPath);
-							append(&file, filename);
-							terminate_with_null(&file);
-							files[filesSize].path = file;
-							files[filesSize].relpath = substr(file, searchPaths[pi].size + 1);
-							umm allocSize = getFileSize(file.str) + 1;
-							files[filesSize].content.memory_size = (i32)allocSize;
-							files[filesSize].content.size = 0;
-							files[filesSize].content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
-							InterlockedIncrement(&indexingInProgress);
-							addEntryToWorkQueue(queue, workerLoadFileToMemory, files + filesSize);
-							filesSize++;
+							String filename = make_string_slowly(current->name);
+							String fileext = file_extension(filename);
+							bool matchext = false;
+							for (i32 ei = 0; ei < searchExtensionsSize; ++ei)
+							{
+								if (match(fileext, searchExtensions[ei]))
+								{
+									matchext = true;
+									break;
+								}
+							}
+							if (matchext)
+							{
+								FileIndex* fileIndex = files + filesSize;
+								String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
+								append(&file, searchPath);
+								append(&file, filename);
+								terminate_with_null(&file);
+								fileIndex->path = file;
+								fileIndex->relpath = substr(file, searchPaths[pi].size + 1);
+								umm fileLength = getFileSize(current);
+								fileIndex->content = {};
+								//if (fileLength <= maxFileLength)
+								{
+									umm allocSize = (umm)(1.5 * fileLength) + 1;
+									if (allocSize > maxFileLength + 1)
+										allocSize = maxFileLength + 1;
+									fileIndex->content.memory_size = (i32)allocSize;
+									fileIndex->content.size = 0;
+									fileIndex->content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
+									InterlockedIncrement(&indexingInProgress);
+									addEntryToWorkQueue(queue, workerLoadFileToMemory, fileIndex);
+								}
+								filesSize++;
+							}
 						}
 					}
 				}
@@ -558,8 +578,7 @@ internal void showHighlightedText(String text, i32 highlightedOffset, i32 highli
 
 
 
-bool
-CubicUpdateFixedDuration1(float *P0, float *V0, float P1, float V1, float Duration, float dt)
+bool CubicUpdateFixedDuration1(float *P0, float *V0, float P1, float V1, float Duration, float dt)
 {
 	bool Result = false;
 
@@ -604,11 +623,11 @@ float time = 0;
 float dy;
 float targetScroll = 0;
 
-internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndex* files, i32& selectedLine, bool showRelativePaths)
+internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndex* files, i32& selectedLine)
 {
 	if (resultsSize <= 0)
 	{
-		ImGui::TextColored(filenameColor, "No result to show.");
+		ImGui::TextColored(filenameColor, "No results to show.");
 		return;
 	}
 
@@ -665,7 +684,7 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 		bool highlighted = (ri == selectedLine);
 		Match match = results[ri];
 		FileIndex fileindex = files[match.index];
-		String filename = showRelativePaths ? fileindex.relpath : fileindex.path;
+		String filename = config.showRelativePaths ? fileindex.relpath : fileindex.path;
 
 		float scrollMax = ImGui::GetScrollMaxY();
 		float scroll = ImGui::GetScrollY();
@@ -710,7 +729,7 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 		}
 		else
 		{
-			showHighlightedText(filename, match.offset_in_line + (showRelativePaths ? 0 : (fileindex.path.size - fileindex.relpath.size)), match.matching_length);
+			showHighlightedText(filename, match.offset_in_line + (config.showRelativePaths ? 0 : (fileindex.path.size - fileindex.relpath.size)), match.matching_length);
 		}
 	}
 
@@ -729,6 +748,7 @@ struct WorkerSearchData
 {
 	String content;
 	String pattern;
+	FileIndex* file;
 	Match* results;
 	volatile i32* resultsSize;
 	i32 resultsSizeLimit;
@@ -754,6 +774,30 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	{
 		InterlockedDecrement(&searchInProgress);
 		return;
+	}
+
+	FileIndex* filei = wdata->file;
+	if (filei)
+	{
+		if (workerSearchPatternShouldStop)
+			return;
+
+		FILETIME lastWriteTime = GetLastWriteTime(filei->path.str);
+		if (CompareFileTime(&filei->lastWriteTime, &lastWriteTime))
+		{
+			printf("file %s has been modified since last index.\n", filei->path.str);
+
+			FILE* file = fopen(filei->path.str, "rb");
+			if (file)
+			{
+				memid nitemsRead = fread(filei->content.str, 1, filei->content.memory_size - 1, file);
+				filei->content.size = (i32)nitemsRead;
+				terminate_with_null(&filei->content);
+				fclose(file);
+			}
+
+			filei->lastWriteTime = lastWriteTime;
+		}
 	}
 
 	i32 lineIndex = 1;
@@ -872,10 +916,13 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				String filepath = files[fi].path;
 				String content = files[fi].content;
 
+				if (content.size <= 0)
+					continue;
 
 				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
 				searchData->content = content;
 				searchData->pattern = pattern;
+				searchData->file = files + fi;
 				searchData->results = results;
 				searchData->resultsSize = wdata->resultsSize;
 				searchData->resultsSizeLimit = resultsSizeLimit;
@@ -999,7 +1046,7 @@ internal DWORD worker_thread(void* _data)
 	return 0;
 }
 
-#if APP_INTERNAL && 0
+#if APP_INTERNAL && 1
 int main()
 #else
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -1052,7 +1099,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	}
 
 
-	Config config = iconfig;
+	config = iconfig;
 	config.path = pushNewString(arena, 4 * 4096);
 	copy(&config.path, iconfig.path);
 	terminate_with_null(&config.path);
@@ -1060,13 +1107,27 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	config.ext = pushNewString(arena, 4096);
 	copy(&config.ext, iconfig.ext);
 	if (!config.ext.size)
-		copy(&config.ext, make_lit_string("c;cpp;h;hpp;"));
+		copy(&config.ext, make_lit_string("c;cpp;h;hpp;txt;"));
 	terminate_with_null(&config.ext);
+
+	struct ProgramString
+	{
+		String name;
+		String command;
+		b32 untested;
+	};
+
+	ProgramString programStrings[] =
+	{
+		{ make_lit_string("Sublime Text 3"), make_lit_string("\"C:\\Program Files\\Sublime Text 3\\sublime_text.exe\" \"%p:%l:%c\""), },
+		{ make_lit_string("Emacs"), make_lit_string("emacsclient +%l:%c \"%p\""), true, },
+		{ make_lit_string("GVim"), make_lit_string("gvim '+normal %lG%c|' \"%p\""), true, },
+	};
 
 	config.tool = pushNewString(arena, 4096);
 	copy(&config.tool, iconfig.tool);
 	if (!config.tool.size)
-		copy(&config.tool, make_lit_string("C:\\Program Files\\Sublime Text 3\\sublime_text.exe %p:%l"));
+		copy(&config.tool, programStrings[0].command);
 	terminate_with_null(&config.tool);
 
 	String searchBuffer = pushNewString(arena, 4096);
@@ -1151,6 +1212,33 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 				ImGui::Checkbox("Edit Program command", &config.showProgram);
 				ImGui::Checkbox("Edit Folders and Extensions", &config.showFolderAndExt);
 				ImGui::Checkbox("Show Relative Paths", &config.showRelativePaths);
+				ImGui::Checkbox("Show hidden files/dirs", &config.showHiddenFiles);
+				ImGui::EndMenu();
+			}
+
+			if (ImGui::BeginMenu("Help"))
+			{
+				if (ImGui::BeginMenu("Program templates"))
+				{
+					for (i32 pi = 0; pi < ArrayCount(programStrings); ++pi)
+					{
+						ProgramString p = programStrings[pi];
+						if (ImGui::MenuItem(p.name.str))
+						{
+							copy(&config.tool, p.command);
+							terminate_with_null(&config.tool);
+						}
+						if (p.untested && ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::Text("This command has not been tested.");
+							ImGui::Text("If you find a working command, please let me know.");
+							ImGui::EndTooltip();
+						}
+					}
+
+					ImGui::EndMenu();
+				}
 				ImGui::EndMenu();
 			}
             ImGui::EndMainMenuBar();
@@ -1224,6 +1312,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 					ImGui::Text("Make sure the path is contained withing quotes");
 					ImGui::Text("For Sublime Text, the arguments are : \"%%p:%%l:%%c\"");
 					ImGui::Text("You can hide this input in the options");
+					ImGui::Text("You can set some templates from the Help menu.");
 					ImGui::EndTooltip();
 				}
 			}
@@ -1239,7 +1328,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 				if (ImGui::IsItemHovered())
 				{
 					ImGui::BeginTooltip();
-					ImGui::Text("You can open multiple folders by separating them with semicolons ';'");
+					ImGui::Text("Search in several folders by separating them with semicolons ';'");
 					ImGui::EndTooltip();
 				}
 				if (!indexingInProgress)
@@ -1252,7 +1341,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 				if (ImGui::IsItemHovered())
 				{
 					ImGui::BeginTooltip();
-					ImGui::Text("You can select multiple extensions by separating them with semicolons ';'");
+					ImGui::Text("Choose several extensions by separating them with semicolons ';'");
+					ImGui::Text("Extensions should not contain the '.' or any wildcard.");
 					ImGui::EndTooltip();
 				}
 			}
@@ -1262,7 +1352,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::BeginTooltip();
-				ImGui::Text("No regex nor wildcards for now. Sorry... Maybe later.");
+				ImGui::Text("No regex or wildcards for now. Sorry... Maybe later.");
 				ImGui::EndTooltip();
 			}
 
@@ -1298,7 +1388,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 		ImGui::BeginChild("Results", ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 		{
-			showResults(results, resultsSize, resultsMaxSize, files, selectedLine, config.showRelativePaths);
+			showResults(results, resultsSize, resultsMaxSize, files, selectedLine);
 		}
 		ImGui::EndChild();
 

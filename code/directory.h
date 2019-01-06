@@ -84,6 +84,16 @@ inline void dclose(Directory* d)
     ZeroStruct(*d);
 }
 
+inline bool isHidden(Directory* d)
+{
+	return (d->data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN);
+}
+
+inline u64 getFileSize(Directory* d)
+{
+	return ((u64)d->data.nFileSizeHigh * ((u64)MAXDWORD + 1)) + d->data.nFileSizeLow;
+}
+
 internal b32 PathFileExists(char* path)
 {
     b32 result = false;
