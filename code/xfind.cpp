@@ -627,7 +627,7 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 {
 	if (resultsSize <= 0)
 	{
-		ImGui::TextColored(filenameColor, "No results to show.");
+		ImGui::TextColored(filenameColor, "--- No results to show ---");
 		return;
 	}
 
@@ -735,11 +735,11 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 
 	if (resultsSize >= resultsSizeLimit)
 	{
-		ImGui::TextColored(filenameColor, "... There are too many results, only showing the first %d ...", resultsSize);
+		ImGui::TextColored(filenameColor, "--- There are too many results, only showing the first %d ---", resultsSize);
 	}
 	else
 	{
-		ImGui::TextColored(filenameColor, "... %d results ...", resultsSize);
+		ImGui::TextColored(filenameColor, "--- %d results ---", resultsSize);
 	}
 }
 
@@ -785,8 +785,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		FILETIME lastWriteTime = GetLastWriteTime(filei->path.str);
 		if (CompareFileTime(&filei->lastWriteTime, &lastWriteTime))
 		{
-			printf("file %s has been modified since last index.\n", filei->path.str);
-
+			//printf("file %s has been modified since last index.\n", filei->path.str);
 			FILE* file = fopen(filei->path.str, "rb");
 			if (file)
 			{
@@ -1259,7 +1258,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 			if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_C), false) && io.KeyCtrl)
 			{
-				//copyToClipboard(file);
+				copyToClipboard(file);
 			}
 
 			if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)) && 0 <= selectedLine && selectedLine < resultsSize)
@@ -1269,15 +1268,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		}
 
 
-        //glfwGetWindowSize(window, &windowWidth, &windowHeight);
-        ImGui::SetNextWindowSize(ImVec2((float)windowWidth, (float)windowHeight - 26.0f));
-        ImGui::SetNextWindowPos(ImVec2(0.0f, 26.0f));
-        ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize);
+		float offset = g.Style.DisplaySafeAreaPadding.y + g.FontBaseSize + g.Style.FramePadding.y;
+		ImGui::SetNextWindowSize(ImVec2((float)windowWidth, (float)windowHeight - offset));
+		ImGui::SetNextWindowPos(ImVec2(0.0f, offset));
+		ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 		{
-			/*
-			ImGui::ColorEdit3("highlight", &highlightColor.Value.x);
-			ImGui::ColorEdit3("matching", &matchingColor.Value.x);
-			ImGui::ColorEdit3("filename", &filenameColor.Value.x);*/
+			//ImGui::ColorEdit3("highlight", &highlightColor.Value.x);
+			//ImGui::ColorEdit3("matching", &matchingColor.Value.x);
+			//ImGui::ColorEdit3("filename", &filenameColor.Value.x);
 			char texts[4] = {};
 			float textsSize[4] = {};
 
