@@ -1,4 +1,6 @@
-xfind is a tool to search for text in multiple files inside several folders.  
+xfind is a multithreaded application to search for text in multiple files inside several folders.  
+
+You can download a compiled version of xfind here : [xfind binary](https://bitbucket.org/Rednaj/xfind/downloads/xfind.zip)  
   
 First choose a directory and some file extensions.  
 When indexing is finished (about 10 seconds for 30.000 files on my SSD)  
@@ -27,7 +29,7 @@ There is absolutely no optimization done yet.
 Only works on Windows (for now).  
 Make sure you have the font next to the executable.  
 
-Options:  
+Options
 ===
 ![options](https://bitbucket.org/Rednaj/xfind/downloads/xfind_options.png)
 
@@ -37,4 +39,12 @@ Show/Hide the program's command input. (to have more vertical space)
 Show/Hide the inputs for folders and extensions.  
 Show relative/full paths  
 Search hidden files/folders  
-Search/Ignore the file names  
+Search/Ignore the file names. If disabled, it will only show matching lines. If enabled, it will show both the matching file names and lines. File name are always shown before the lines.  
+
+
+Compiling xfind
+===
+You can compile xfind using the `build.bat` (after setting the cl environment).  
+To set the environment, it depends on your version of visual studio:  
+For visual studio 2017 community: `"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"`  
+After that, you can launch `build.bat` in the same console.  
