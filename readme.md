@@ -44,13 +44,13 @@ Search/Ignore the file names. If disabled, it will only show matching lines. If 
 Known bugs
 ===
 Not detecting new files on search. For performance reasons, the index is not updated when searching for a string.  
-By-pass: if you add new files, you can force to rebuild the index by modifying the folders (just add or remove a semicolon at the end).  
+By-pass: if you add new files, you can force to rebuild the index by modifying the folders (Tools -> Recompute the index).  
 I plan on using FindFirstChangeNotification to fix this.  
 
 File are reloaded on search if modified. But if the size exceeds 1.5x it's original size. Then only that part will be loaded.  
 This might be fixed at the same time as the previous bug.  
 This will cause a problem if an empty files goes over 4KB. It will only search the first 4KB.
-By-pass: Same as above : regenerate the index again.
+By-pass: Same as above : regenerate the index again (Tools -> Recompute the index).  
 
 Todo
 ===
