@@ -13,7 +13,7 @@ The search is case insensitive.
 ![Example search](https://bitbucket.org/Rednaj/xfind/downloads/xfind_sample_4coder.png)
 
 You can select a line with up/down arrows. Also page up/down.  
-Then press enter to open this file using a specified command line.  
+Then press enter or double click on a line to open the corresponding file using the specified command line.  
 Or press CTRL+C to copy the path of the file.  
 In the command line, %p will be replaced by the path of the file. %l will be replaced by the line number. %c will be replaced by the column number.  
 You can specify as many arguments as you whish. There are some examples in the help command. Only Sublime Text 3 has been tested.  
@@ -58,7 +58,6 @@ By-pass: Same as above : regenerate the index again (Tools -> Recompute the inde
 Todo
 ===
 Look for modified files to update the index. (partial)  
-Mouse click on the result list.  
 Search history  
 Paths history  
 Extensions history  
