@@ -30,6 +30,8 @@ ImColor matchingColor = ImVec4(0.145f, 0.822f, 0.07f, 1.0f);
 ImColor filenameColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
 ImColor highlightColor = ImVec4(0.43f, 0, 0, 255);
 
+b32 setFocusToSearchInput;
+
 struct FileIndex
 {
 	String path;
@@ -250,6 +252,59 @@ internal void addEntryToWorkQueue(WorkQueue* queue, WorkQueueCallback* callback,
 	ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
+
+
+
+
+
+void execProgram(char* program)
+{
+	STARTUPINFO infos = {};
+	infos.cb = sizeof(STARTUPINFO);
+	PROCESS_INFORMATION pinfos = {};
+	CreateProcessA(0, program, 0, 0, FALSE, 0, 0, 0, &infos, &pinfos);
+	CloseHandle(pinfos.hThread);
+	CloseHandle(pinfos.hProcess);
+}
+
+void execOpenFile(String program, String filename, i32 fileline, i32 column)
+{
+	char buff[4096];
+	String call = make_fixed_width_string(buff);
+	for (i32 ci = 0; ci < program.size; ++ci)
+	{
+		char c = program.str[ci];
+		if (c == '%')
+		{
+			char c2 = program.str[ci + 1];
+			if (c2 == 'p')
+			{
+				append(&call, filename);
+				++ci;
+			}
+			else if (c2 == 'l')
+			{
+				append_int_to_str(&call, fileline);
+				++ci;
+			}
+			else if (c2 == 'c')
+			{
+				append_int_to_str(&call, column);
+				++ci;
+			}
+			else
+			{
+				append(&call, c);
+			}
+		}
+		else
+		{
+			append(&call, c);
+		}
+	}
+	terminate_with_null(&call);
+	execProgram(call.str);
+}
 
 
 
@@ -691,6 +746,37 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 	float s = h - ImGui::GetTextLineHeight();
 	ImVec2 avail = ImGui::GetContentRegionAvail();
 
+	ImVec2 mouse = ImGui::GetMousePos() - ImGui::GetCursorScreenPos();
+	float hoverIndexF = mouse.y / h;
+	int hoverIndex = -1;
+	if (hoverIndexF >= 0)
+		hoverIndex = (int)hoverIndexF;
+	if (hoverIndex >= resultsSize)
+		hoverIndex = -1;
+
+	//ImGui::BeginTooltip();
+	//ImGui::Text("%f / %f : %f %d", mouse.x, mouse.y, hoverIndexF, hoverIndex);
+	//ImGui::Text("%f -> %f", selectedLine*h, (selectedLine + 1)*h);
+	//ImGui::Text("%f %f", diffDown, diffUp);
+	//ImGui::EndTooltip();
+
+
+	if (hoverIndex >= 0)
+	{
+		if (ImGui::IsMouseClicked(0))
+		{
+			selectedLine = hoverIndex;
+			setFocusToSearchInput = true;
+		}
+		if (ImGui::IsMouseDoubleClicked(0))
+		{
+			Match match = results[hoverIndex];
+			execOpenFile(config.tool, files[match.index].path, match.lineIndex, match.offset_in_line + 1);
+			//Sleep(10);
+			//SetForegroundWindow(glfwGetWin32Window(window));
+		}
+	}
+
 	for (i32 ri = 0; ri < resultsSize && ri < resultsSizeLimit; ++ri)
 	{
 		bool highlighted = (ri == selectedLine);
@@ -700,10 +786,12 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 
 		float scrollMax = ImGui::GetScrollMaxY();
 		float scroll = ImGui::GetScrollY();
+
+		ImVec2 lineStart = ImGui::GetCursorScreenPos() + ImVec2(0, -s / 2);
+		ImVec2 lineEnd = lineStart + ImVec2(avail.x, h);
+
 		if (highlighted)
 		{
-			ImVec2 lineStart = ImGui::GetCursorScreenPos() + ImVec2(0, -s / 2);
-			ImVec2 lineEnd = lineStart + ImVec2(avail.x, h);
 			ImGui::GetWindowDrawList()->AddRectFilled(lineStart, lineEnd, highlightColor);
 
 			if (selectionChanged)
@@ -723,12 +811,11 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 					targetScroll = (selectedLine - padding)*h;
 					time = 0.1f;
 				}
-				//ImGui::BeginTooltip();
-				//ImGui::Text("%f / %f", scroll, avail.y);
-				//ImGui::Text("%f -> %f", selectedLine*h, (selectedLine + 1)*h);
-				//ImGui::Text("%f %f", diffDown, diffUp);
-				//ImGui::EndTooltip();
 			}
+		}
+		else if (ri == hoverIndex)
+		{
+			ImGui::GetWindowDrawList()->AddRectFilled(lineStart, lineEnd, ImColor(.2f, .2f, .2f));
 		}
 
 		if (results[ri].lineIndex > 0)
@@ -985,57 +1072,6 @@ internal void searchPattern(MainSearchPatternData* searchData, WorkQueue* queue,
 }
 
 
-void execProgram(char* program)
-{
-	STARTUPINFO infos = {};
-	infos.cb = sizeof(STARTUPINFO);
-	PROCESS_INFORMATION pinfos = {};
-	CreateProcessA(0, program, 0, 0, FALSE, 0, 0, 0, &infos, &pinfos);
-	CloseHandle(pinfos.hThread);
-	CloseHandle(pinfos.hProcess);
-}
-
-void execOpenFile(String program, String filename, i32 fileline, i32 column)
-{
-	char buff[4096];
-	String call = make_fixed_width_string(buff);
-	for (i32 ci = 0; ci < program.size; ++ci)
-	{
-		char c = program.str[ci];
-		if (c == '%')
-		{
-			char c2 = program.str[ci + 1];
-			if (c2 == 'p')
-			{
-				append(&call, filename);
-				++ci;
-			}
-			else if (c2 == 'l')
-			{
-				append_int_to_str(&call, fileline);
-				++ci;
-			}
-			else if (c2 == 'c')
-			{
-				append_int_to_str(&call, column);
-				++ci;
-			}
-			else
-			{
-				append(&call, c);
-			}
-		}
-		else
-		{
-			append(&call, c);
-		}
-	}
-	terminate_with_null(&call);
-	execProgram(call.str);
-}
-
-
-
 
 
 struct ThreadData
@@ -1150,7 +1186,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	b32 running = true;
 	b32 setFocusToFolderInput = !config.path.size;
-	b32 setFocusToSearchInput = !setFocusToFolderInput;
+	setFocusToSearchInput = !setFocusToFolderInput;
 	i32 selectedLine = 0;
 
 	i32 searchPathsSizeMax = 1024;
