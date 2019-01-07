@@ -39,7 +39,16 @@ Show/Hide the program's command input. (to have more vertical space)
 Show/Hide the inputs for folders and extensions.  
 Show relative/full paths  
 Search hidden files/folders  
-Search/Ignore the file names. If disabled, it will only show matching lines. If enabled, it will show both the matching file names and lines. File name are always shown before the lines.  
+Search/Ignore the file names. If disabled, it will only show matching lines. If enabled, it will show both the matching file names and lines. Matching file names are always shown before the lines.  
+
+Known bugs
+===
+Not detecting new files on search. For performance reasons, the index is not updated when searching for a string.  
+By-pass: if you add new files, you can force to rebuild the index by modifying the folders (just add or remove a semicolon at the end).  
+I plan on using FindFirstChangeNotification to fix this.  
+
+File are reloaded on search if modified. But if the size exceeds 1.5x it's original size. Then only that part will be loaded.  
+This might be fixed at the same time as the previous bug.  
 
 
 Compiling xfind
