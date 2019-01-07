@@ -5,6 +5,7 @@
 // Paths history
 // Extensions history
 // Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)
+// hot key to give focus to xfind : RegisterHotKey ? (https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-registerhotkey)
 
 
 #include <stdio.h>
