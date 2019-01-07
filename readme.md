@@ -6,8 +6,8 @@ If you don't trust me, you can review the code. The process for compiling xfind 
 First choose a directory and some file extensions.  
 When indexing is finished (about 10 seconds for 30.000 files on my SSD)  
 You can then quickly search for a string in those files.  
-First it shows the file names matching your string.  
-It then (almost) instantly shows the matching lines.  
+If first lists the files matching your string by name.  
+It then shows the matching lines.  
 The search is case insensitive.  
 
 ![Example search](https://bitbucket.org/Rednaj/xfind/downloads/xfind_sample_4coder.png)
