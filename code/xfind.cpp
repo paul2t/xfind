@@ -1268,8 +1268,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             ImGui::EndMainMenuBar();
         }
 
-		bool inputModified = false;
-		bool searchModified = false;
+		b32 inputModified = false;
+		b32 searchModified = false;
 
 		if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter), false) || ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
 			setFocusToSearchInput = true;

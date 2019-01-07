@@ -86,7 +86,7 @@ inline void dclose(Directory* d)
 
 inline bool isHidden(Directory* d)
 {
-	return (d->data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN);
+	return (d->data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0;
 }
 
 inline u64 getFileSize(Directory* d)
