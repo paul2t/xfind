@@ -366,6 +366,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	indexArena.Release();
 
 	umm maxFileLength = MegaBytes(10);
+	umm minFileLength = KiloBytes(4);
 
 	IndexWorkerData* wdata = (IndexWorkerData*)data;
 	String* searchPaths = wdata->paths;
@@ -459,6 +460,8 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 									umm allocSize = (umm)(1.5 * fileLength) + 1;
 									if (allocSize > maxFileLength + 1)
 										allocSize = maxFileLength + 1;
+									if (allocSize < minFileLength)
+										allocSize = minFileLength;
 									fileIndex->content.memory_size = (i32)allocSize;
 									fileIndex->content.size = 0;
 									fileIndex->content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
@@ -1167,6 +1170,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	Match* results = pushArray(arena, Match, resultsMaxSize+1);
 	volatile i32 resultsSize = 0;
 	b32 needToSearchAgain = false;
+	b32 needToGenerateIndex = false;
 
 	MainSearchPatternData mainSearch = {};
 
@@ -1223,6 +1227,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 				ImGui::Checkbox("Show hidden files/dirs", &config.showHiddenFiles);
 				if (ImGui::Checkbox("Search file names", &config.searchFileNames))
 					needToSearchAgain = true;
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Tools"))
+			{
+				if (ImGui::MenuItem("Recompute the index"))
+					needToGenerateIndex = true;
 				ImGui::EndMenu();
 			}
 
@@ -1377,18 +1387,19 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 				extensionsSize = parseExtensions(extensions, extensionsMaxSize, config.ext.str);
 			}
 
-			if (modifFolders || modifExtensions)
+			if (modifFolders || modifExtensions || needToGenerateIndex)
 			{
 				if (searchPathExists)
 				{
 					resultsSize = 0;
 					computeIndex(iwData, &workQueue, searchPaths, searchPathsSize, extensions, extensionsSize, files, &filesSize, filesMaxSize);
 					needToSearchAgain = true;
+					needToGenerateIndex = false;
 				}
 			}
 		}
 
-		if (!indexingInProgress && (needToSearchAgain || searchModified) && searchPathExists)
+		if (!needToGenerateIndex && !indexingInProgress && (needToSearchAgain || searchModified) && searchPathExists)
 		{
 			searchPattern(&mainSearch, &workQueue, results, &resultsSize, resultsMaxSize, files, filesSize, searchBuffer);
 			needToSearchAgain = false;

@@ -49,7 +49,17 @@ I plan on using FindFirstChangeNotification to fix this.
 
 File are reloaded on search if modified. But if the size exceeds 1.5x it's original size. Then only that part will be loaded.  
 This might be fixed at the same time as the previous bug.  
+This will cause a problem if an empty files goes over 4KB. It will only search the first 4KB.
+By-pass: Same as above : regenerate the index again.
 
+Todo
+===
+Look for modified files to update the index. (partial)  
+Mouse click on the result list.  
+Search history  
+Paths history  
+Extensions history  
+Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)  
 
 Compiling xfind
 ===
