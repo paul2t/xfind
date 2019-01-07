@@ -1192,8 +1192,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		if (config.fontSize != oldFontSize)
 		{
 			ImGui_ImplOpenGL2_DestroyFontsTexture();
-			io.Fonts->ClearFonts();
-			io.Fonts->AddFontFromFileTTF(config.fontFile.str, config.fontSize);
+			io.Fonts->Clear();
+			if (PathFileExists(config.fontFile.str))
+				io.Fonts->AddFontFromFileTTF(config.fontFile.str, config.fontSize);
 			oldFontSize = config.fontSize;
 		}
 
