@@ -1,6 +1,7 @@
 xfind is a multithreaded application to search for text in multiple files inside several folders.  
 
 You can download a compiled version of xfind here : [xfind binary](https://bitbucket.org/Rednaj/xfind/downloads/xfind.zip)  
+If you don't trust me, you can review the code. The process for compiling xfind is below.  
   
 First choose a directory and some file extensions.  
 When indexing is finished (about 10 seconds for 30.000 files on my SSD)  
