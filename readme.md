@@ -26,5 +26,15 @@ There is absolutely no optimization done yet.
 
 Only works on Windows (for now).  
 Make sure you have the font next to the executable.  
-You can change the font in the xfind.ini file. Which is generated after launching the program for the first time.  
-The font size can be changed live in the menu Options.  
+
+Options:  
+===
+![options](https://bitbucket.org/Rednaj/xfind/downloads/xfind_options.png)
+
+Change the font size.  
+The font can only be changed in the xfind.ini file. Which is generated after launching the program for the first time.  
+Show/Hide the program's command input. (to have more vertical space)  
+Show/Hide the inputs for folders and extensions.  
+Show relative/full paths  
+Search hidden files/folders  
+Search/Ignore the file names  

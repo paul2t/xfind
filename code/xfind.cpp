@@ -57,6 +57,7 @@ struct Config
 	bool showFolderAndExt = true;
 	bool showRelativePaths = true;
 	bool showHiddenFiles = false;
+	bool searchFileNames = true;
 	float fontSize = 20.0f;
 	String fontFile;
 
@@ -122,6 +123,8 @@ Config readConfig(MemoryArena& arena)
 				conf.showRelativePaths = false;
 			if (match(line, make_lit_string("show_hidden_files")))
 				conf.showHiddenFiles = true;
+			if (match(line, make_lit_string("no_file_name_search")))
+				conf.searchFileNames = false;
 		}
 	}
 	return conf;
@@ -143,6 +146,9 @@ void writeConfig(Config conf)
 			fprintf(configFile, "show_full_path\n");
 		if (conf.showHiddenFiles)
 			fprintf(configFile, "show_hidden_files\n");
+		if (!conf.searchFileNames)
+			fprintf(configFile, "no_file_name_search\n");
+
 			for (int ki = 0; ki < ArrayCount(configKeys); ++ki)
 		{
 			fprintf(configFile, "%.*s%.*s\n", strexp(configKeys[ki]), strexp(oconfig[ki]));
@@ -886,23 +892,26 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 
 	if (pattern.size > 0)
 	{
-		// Search the file name
-		for (i32 fi = 0; fi < filesSize; ++fi)
+		if (config.searchFileNames)
 		{
-			if (workerSearchPatternShouldStop)
-				return;
+			// Search the file name
+			for (i32 fi = 0; fi < filesSize; ++fi)
+			{
+				if (workerSearchPatternShouldStop)
+					return;
 
-			WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
-			searchData->content = files[fi].relpath;
-			searchData->pattern = pattern;
-			searchData->results = results;
-			searchData->resultsSize = wdata->resultsSize;
-			searchData->resultsSizeLimit = resultsSizeLimit;
-			searchData->fileIndex = fi;
-			searchData->trackLineIndex = false;
+				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
+				searchData->content = files[fi].relpath;
+				searchData->pattern = pattern;
+				searchData->results = results;
+				searchData->resultsSize = wdata->resultsSize;
+				searchData->resultsSizeLimit = resultsSizeLimit;
+				searchData->fileIndex = fi;
+				searchData->trackLineIndex = false;
 
-			InterlockedIncrement(&searchInProgress);
-			addEntryToWorkQueue(queue, workerSearchPattern, searchData);
+				InterlockedIncrement(&searchInProgress);
+				addEntryToWorkQueue(queue, workerSearchPattern, searchData);
+			}
 		}
 
 		if (*wdata->resultsSize < resultsSizeLimit)
@@ -1208,10 +1217,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 			if (ImGui::BeginMenu("Options"))
 			{
 				ImGui::DragFloat("Font", &config.fontSize, 0.2f, 6, 38);
-				ImGui::Checkbox("Edit Program command", &config.showProgram);
-				ImGui::Checkbox("Edit Folders and Extensions", &config.showFolderAndExt);
-				ImGui::Checkbox("Show Relative Paths", &config.showRelativePaths);
+				ImGui::Checkbox("Edit program's command", &config.showProgram);
+				ImGui::Checkbox("Edit folders and extensions", &config.showFolderAndExt);
+				ImGui::Checkbox("Show relative paths", &config.showRelativePaths);
 				ImGui::Checkbox("Show hidden files/dirs", &config.showHiddenFiles);
+				if (ImGui::Checkbox("Search file names", &config.searchFileNames))
+					needToSearchAgain = true;
 				ImGui::EndMenu();
 			}
 
