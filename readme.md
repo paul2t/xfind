@@ -1,6 +1,6 @@
 xfind is a multithreaded application to search for text in multiple files inside several folders.  
 
-You can download a compiled version of xfind here : [xfind binary](https://bitbucket.org/Rednaj/xfind/downloads/xfind.zip)  
+You can download a compiled version in the [releases](https://github.com/rednaj/xfind/releases)  
 If you don't trust me, you can review the code. The process for compiling xfind is below.  
   
 First choose a directory and some file extensions.  
@@ -10,7 +10,7 @@ If first lists the files matching your string by name.
 It then shows the matching lines.  
 The search is case insensitive.  
 
-![Example search](https://bitbucket.org/Rednaj/xfind/downloads/xfind_sample_4coder.png)
+![Example search](https://user-images.githubusercontent.com/1074956/50818370-0e88a800-1327-11e9-9f9c-afa1dc162e16.png)
 
 You can select a line with up/down arrows. Also page up/down.  
 Then press enter or double click on a line to open the corresponding file using the specified command line.  
@@ -34,7 +34,7 @@ Make sure you have the font next to the executable.
 
 Options
 ===
-![options](https://bitbucket.org/Rednaj/xfind/downloads/xfind_options.png)
+![options](https://user-images.githubusercontent.com/1074956/50818258-c1a4d180-1326-11e9-8192-23e7206c4949.png)
 
 Change the font size.  
 The font can only be changed in the xfind.ini file. Which is generated after launching the program for the first time.  
