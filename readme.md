@@ -1,4 +1,5 @@
 xfind is a multithreaded application to search for text in multiple files inside several folders.  
+This application has been developped using [imgui](https://github.com/ocornut/imgui) and [glfw](https://github.com/glfw/glfw)  
 
 You can download a compiled version in the [releases](https://github.com/rednaj/xfind/releases)  
 If you don't trust me, you can review the code. The process for compiling xfind is below.  
