@@ -753,6 +753,11 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 		hoverIndex = (int)hoverIndexF;
 	if (hoverIndex >= resultsSize)
 		hoverIndex = -1;
+	if (mouse.x > avail.x)
+		hoverIndex = -1;
+
+	if (!ImGui::IsWindowHovered())
+		hoverIndex = -1;
 
 	//ImGui::BeginTooltip();
 	//ImGui::Text("%f / %f : %f %d", mouse.x, mouse.y, hoverIndexF, hoverIndex);
