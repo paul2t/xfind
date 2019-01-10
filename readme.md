@@ -63,6 +63,8 @@ Search history
 Paths history  
 Extensions history  
 Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)  
+Look for text in : docx, pptx, odt, odp, pdf, ...
+Regex
 
 Compiling xfind
 ===
