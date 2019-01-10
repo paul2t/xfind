@@ -1212,7 +1212,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		computeIndex(iwData, &workQueue, searchPaths, searchPathsSize, extensions, extensionsSize, files, &filesSize, filesMaxSize);
 	}
 
-	i32 resultsMaxSize = 100;
+	i32 resultsMaxSize = 1000;
 	Match* results = pushArray(arena, Match, resultsMaxSize+1);
 	volatile i32 resultsSize = 0;
 	b32 needToSearchAgain = false;
