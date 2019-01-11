@@ -115,4 +115,21 @@ internal b32 PathFileExists(MemoryArena& arena, String pathNonZero)
 	return result;
 }
 
+
+
+
+
+inline FILETIME GetLastWriteTime(char* filename)
+{
+	FILETIME lastWriteTime = {};
+
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (GetFileAttributesEx(filename, GetFileExInfoStandard, &data))
+	{
+		lastWriteTime = data.ftLastWriteTime;
+	}
+
+	return lastWriteTime;
+}
+
 #endif

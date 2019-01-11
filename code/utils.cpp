@@ -132,6 +132,52 @@ inline String pushStringZeroTerminated(MemoryArena& arena, String s, PushParam p
 }
 
 
+internal_function i32 splitByChar(String* outputs, i32 outputsMaxSize, char* input, char c)
+{
+	i32 outputsSize = 0;
+	char* at = input;
+	String current = {};
+	current.str = at;
+	while (*at)
+	{
+		if (*at == c)
+		{
+			if (current.size > 0)
+				outputs[outputsSize++] = current;
+			++at;
+			current = {};
+			current.str = at;
+			if (outputsSize >= outputsMaxSize)
+				break;
+		}
+		else
+		{
+			++current.size;
+			++current.memory_size;
+			++at;
+		}
+	}
+	if (current.size > 0)
+		outputs[outputsSize++] = current;
+	return outputsSize;
+}
+
+
+internal_function b32 findStringInArrayInsensitive(String* list, i32 listSize, String str)
+{
+	b32 found = false;
+	for (i32 di = 0; di < listSize; ++di)
+	{
+		if (match_insensitive(list[di], str))
+		{
+			found = true;
+			break;
+		}
+	}
+	return found;
+}
+
+
 // NOTE(xf4): This is 6 times faster than strtol
 internal_function u32 fastStringToU32(char* str, char*& end)
 {
@@ -173,6 +219,19 @@ internal_function bool copyToClipboard(const char* str, int size)
 internal_function bool copyToClipboard(String s)
 {
     return copyToClipboard(s.str, s.size);
+}
+
+
+
+
+void execProgram(char* program)
+{
+	STARTUPINFO infos = {};
+	infos.cb = sizeof(STARTUPINFO);
+	PROCESS_INFORMATION pinfos = {};
+	CreateProcessA(0, program, 0, 0, FALSE, 0, 0, 0, &infos, &pinfos);
+	CloseHandle(pinfos.hThread);
+	CloseHandle(pinfos.hProcess);
 }
 
 
