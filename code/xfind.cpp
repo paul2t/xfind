@@ -43,10 +43,9 @@ internal void initState(State& state, Config iconfig)
 	state.extensions = pushArray(state.arena, String, state.extensionsMaxSize);
 	state.extensionsSize = parseExtensions(state.extensions, state.extensionsMaxSize, state.config.ext.str);
 
-	state.index.files = pushArray(state.arena, FileIndexEntry, state.index.maxSize);
 	if (state.searchPathExists)
 	{
-		computeFileIndex(state.iwData, &state, &state.pool.queue, state.searchPaths, state.searchPathsSize, state.extensions, state.extensionsSize, state.index.files, &state.index.filesSize, state.index.maxSize);
+		computeFileIndex(&state);
 	}
 
 	state.results = pushArray(state.arena, Match, state.resultsMaxSize + 1);
@@ -152,7 +151,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	if (0 <= state.selectedLine && state.selectedLine < state.resultsSize)
 	{
 		Match match = state.results[state.selectedLine];
-		String file = state.index.files[match.index].path;
+		String file = match.file->path;
 
 		// Copy file name on CTRL+C
 		if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_C), false) && io.KeyCtrl)
@@ -268,13 +267,13 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			if (state.searchPathExists)
 			{
 				state.resultsSize = 0;
-				computeFileIndex(state.iwData, &state, &state.pool.queue, state.searchPaths, state.searchPathsSize, state.extensions, state.extensionsSize, state.index.files, &state.index.filesSize, state.index.maxSize);
+				computeFileIndex(&state);
 				state.needToSearchAgain = true;
 				state.needToGenerateIndex = false;
 			}
 			else if (indexingInProgress)
 			{
-				stopFileIndex(&state.pool.queue, &state.index.filesSize);
+				stopFileIndex(&state);
 			}
 		}
 	}
@@ -282,7 +281,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	// Lauch search if input needed
 	if (!state.needToGenerateIndex && !indexingInProgress && (state.needToSearchAgain || searchModified) && state.searchPathExists)
 	{
-		searchForPatternInFiles(&state.mainSearch, &state, &state.pool.queue, state.results, &state.resultsSize, state.resultsMaxSize, state.index.files, state.index.filesSize, state.searchBuffer);
+		searchForPatternInFiles(&state.mainSearch, &state, &state.pool.queue, state.results, &state.resultsSize, state.resultsMaxSize, &state.index, state.searchBuffer);
 		state.needToSearchAgain = false;
 		state.selectedLine = 0;
 	}
@@ -290,7 +289,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	// Draw results
 	{
 		ImGui::BeginChild("Results");
-		showResults(state, state.results, state.resultsSize, state.resultsMaxSize, state.index.files, state.selectedLine);
+		showResults(state, state.results, state.resultsSize, state.resultsMaxSize, &state.index, state.selectedLine);
 		ImGui::EndChild();
 	}
 
@@ -337,6 +336,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #endif
 {
 	State state = {};
+	state.index.onePastLastFile = &state.index.firstFile; // This is because of an internal error in vs compiler.
 	Config iconfig = readConfig(state.arena);
 
 	GLFWwindow* window = createAndInitWindow(iconfig.width, iconfig.height, iconfig.maximized);

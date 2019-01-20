@@ -23,24 +23,23 @@ internal WORK_QUEUE_CALLBACK(workerLoadFileToMemory)
 	InterlockedDecrement(&indexingInProgress);
 }
 
-MemoryArena indexArena = {};
 internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 {
 	if (workerIndexerShouldStop) return;
 	//u64 ticksStart = getTickCount();
-	indexArena.Release();
 
 	umm maxFileLength = MegaBytes(10);
 	umm minFileLength = KiloBytes(4);
 
-	IndexWorkerData* wdata = (IndexWorkerData*)data;
-	String* searchPaths = wdata->paths;
-	i32 searchPathsSize = wdata->pathsSize;
-	FileIndexEntry* files = wdata->files;
-	i32 filesSizeLimit = wdata->filesSizeLimit;
-	String* searchExtensions = wdata->extensions;
-	i32 searchExtensionsSize = wdata->extensionsSize;
-	State& state = *wdata->state;
+	State* state = (State*)data;
+	String* searchPaths = state->searchPaths;
+	i32 searchPathsSize = state->searchPathsSize;
+	FileIndex* fileIndex = &state->index;
+	String* searchExtensions = state->extensions;
+	i32 searchExtensionsSize = state->extensionsSize;
+	MemoryArena& indexArena = state->index.arena;
+	indexArena.Release();
+	FileIndexEntry** onePastLastFile = fileIndex->onePastLastFile;
 
 	i32 filesSize = 0;
 
@@ -72,7 +71,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 			if (workerIndexerShouldStop) return;
 			if (current->found)
 			{
-				if (!isHidden(current) || state.config.showHiddenFiles)
+				if (!isHidden(current) || state->config.showHiddenFiles)
 				{
 					if (isDir(current))
 					{
@@ -97,45 +96,46 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 					}
 					else
 					{
-						if (filesSize < filesSizeLimit)
+						String filename = make_string_slowly(current->name);
+						String fileext = file_extension(filename);
+						bool matchext = false;
+						for (i32 ei = 0; ei < searchExtensionsSize; ++ei)
 						{
-							String filename = make_string_slowly(current->name);
-							String fileext = file_extension(filename);
-							bool matchext = false;
-							for (i32 ei = 0; ei < searchExtensionsSize; ++ei)
+							if (match(fileext, searchExtensions[ei]))
 							{
-								if (match(fileext, searchExtensions[ei]))
-								{
-									matchext = true;
-									break;
-								}
+								matchext = true;
+								break;
 							}
-							if (matchext)
+						}
+						if (matchext)
+						{
+							FileIndexEntry* fileEntry = pushStruct(indexArena, FileIndexEntry);
+							*onePastLastFile = fileEntry;
+							onePastLastFile = &fileEntry->next;
+
+							String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
+							append(&file, searchPath);
+							append(&file, filename);
+							terminate_with_null(&file);
+
+							fileEntry->path = file;
+							fileEntry->relpath = substr(file, searchPaths[pi].size + 1);
+							umm fileLength = getFileSize(current);
+							fileEntry->content = {};
+
 							{
-								FileIndexEntry* fileIndex = files + filesSize;
-								String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
-								append(&file, searchPath);
-								append(&file, filename);
-								terminate_with_null(&file);
-								fileIndex->path = file;
-								fileIndex->relpath = substr(file, searchPaths[pi].size + 1);
-								umm fileLength = getFileSize(current);
-								fileIndex->content = {};
-								//if (fileLength <= maxFileLength)
-								{
-									umm allocSize = (umm)(1.5 * fileLength) + 1;
-									if (allocSize > maxFileLength + 1)
-										allocSize = maxFileLength + 1;
-									if (allocSize < minFileLength)
-										allocSize = minFileLength;
-									fileIndex->content.memory_size = (i32)allocSize;
-									fileIndex->content.size = 0;
-									fileIndex->content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
-									InterlockedIncrement(&indexingInProgress);
-									addEntryToWorkQueue(queue, workerLoadFileToMemory, fileIndex);
-								}
-								filesSize++;
+								umm allocSize = (umm)(1.5 * fileLength) + 1;
+								if (allocSize > maxFileLength + 1)
+									allocSize = maxFileLength + 1;
+								if (allocSize < minFileLength)
+									allocSize = minFileLength;
+								fileEntry->content.memory_size = (i32)allocSize;
+								fileEntry->content.size = 0;
+								fileEntry->content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
+								InterlockedIncrement(&indexingInProgress);
+								addEntryToWorkQueue(queue, workerLoadFileToMemory, fileEntry);
 							}
+							filesSize++;
 						}
 					}
 				}
@@ -153,7 +153,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 		}
 	}
 
-	*wdata->filesSize = filesSize;
+	fileIndex->filesSize = filesSize;
 
 	InterlockedDecrement(&indexingInProgress);
 
@@ -162,13 +162,13 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	//printMemUsage(indexArena);
 }
 
-internal void stopFileIndex(WorkQueue* queue, volatile i32* filesSize)
+internal void stopFileIndex(State* state)
 {
 	//u64 ticksStart = getTickCount();
 	workerIndexerShouldStop = true;
 	workerLoadIndexShouldStop = true;
 	workerSearchPatternShouldStop = true;
-	finishWorkQueue(queue);
+	finishWorkQueue(&state->pool.queue);
 	workerSearchPatternShouldStop = false;
 	workerLoadIndexShouldStop = false;
 	workerIndexerShouldStop = false;
@@ -176,22 +176,14 @@ internal void stopFileIndex(WorkQueue* queue, volatile i32* filesSize)
 	//printf("%llums to finish the index queue\n", ticksEnd - ticksStart);
 
 	indexingInProgress = 0;
-	*filesSize = 0;
+	state->index.filesSize = 0;
 
 }
 
-internal void computeFileIndex(IndexWorkerData& iwdata, State* state, WorkQueue* queue, String* searchPaths, i32 searchPathsSize, String* searchExtensions, i32 searchExtensionsSize, FileIndexEntry* files, volatile i32* filesSize, i32 filesSizeLimit)
+internal void computeFileIndex(State* state)
 {
-	stopFileIndex(queue, filesSize);
+	stopFileIndex(state);
 
-	iwdata.paths = searchPaths;
-	iwdata.pathsSize = searchPathsSize;
-	iwdata.extensions = searchExtensions;
-	iwdata.extensionsSize = searchExtensionsSize;
-	iwdata.files = files;
-	iwdata.filesSize = filesSize;
-	iwdata.filesSizeLimit = filesSizeLimit;
-	iwdata.state = state;
 	indexingInProgress = 1;
-	addEntryToWorkQueue(queue, workerComputeIndex, &iwdata);
+	addEntryToWorkQueue(&state->pool.queue, workerComputeIndex, state);
 }

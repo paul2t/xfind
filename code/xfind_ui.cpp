@@ -148,7 +148,7 @@ float time = 0;
 float dy;
 float targetScroll = 0;
 
-internal void showResults(State& state, Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndexEntry* files, i32& selectedLine)
+internal void showResults(State& state, Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndex* fileIndex, i32& selectedLine)
 {
 	if (resultsSize <= 0)
 	{
@@ -234,7 +234,7 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 		if (ImGui::IsMouseDoubleClicked(0))
 		{
 			Match match = results[hoverIndex];
-			execOpenFile(state.config.tool, files[match.index].path, match.lineIndex, match.offset_in_line + 1);
+			execOpenFile(state.config.tool, match.file->path, match.lineIndex, match.offset_in_line + 1);
 			//Sleep(10);
 			//SetForegroundWindow(glfwGetWin32Window(window));
 		}
@@ -244,7 +244,7 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 	{
 		bool highlighted = (ri == selectedLine);
 		Match match = results[ri];
-		FileIndexEntry fileindex = files[match.index];
+		FileIndexEntry fileindex = *match.file;
 		String filename = state.config.showRelativePaths ? fileindex.relpath : fileindex.path;
 
 		float scrollMax = ImGui::GetScrollMaxY();

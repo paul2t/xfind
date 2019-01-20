@@ -78,12 +78,14 @@ struct FileIndexEntry
 	String relpath = {};
 	String content = {};
 	FILETIME lastWriteTime = {};
+	FileIndexEntry* next = 0;
 };
 
 struct FileIndex
 {
-	i32 maxSize = 1024 * 1024;
-	FileIndexEntry* files = 0;
+	MemoryArena arena = {};
+	FileIndexEntry* firstFile = 0;
+	FileIndexEntry** onePastLastFile = 0;
 	volatile i32 filesSize = 0;
 };
 
@@ -92,7 +94,7 @@ struct FileIndex
 
 struct Match
 {
-	i32 index = 0;
+	FileIndexEntry* file = 0;
 	i32 lineIndex = 0;
 	i32 line_start_offset_in_file = 0;
 	i32 offset_in_line = 0;
@@ -102,26 +104,13 @@ struct Match
 
 
 
-struct IndexWorkerData
-{
-	String* paths = 0;
-	i32 pathsSize = 0;
-	FileIndexEntry* files = 0;
-	volatile i32* filesSize = 0;
-	String* extensions = 0;
-	i32 extensionsSize = 0;
-	i32 filesSizeLimit = 0;
-	struct State* state = 0;
-};
-
 struct MainSearchPatternData
 {
 	String pattern = {};
 	volatile i32* resultsSize = 0;
 	Match* results = 0;
 	i32 resultsSizeLimit = 0;
-	FileIndexEntry* files = 0;
-	i32 filesSize = 0;
+	FileIndex* fileIndex = 0;
 	struct State* state = 0;
 };
 
@@ -158,7 +147,6 @@ struct State
 	b32 needToGenerateIndex = false;
 
 
-	IndexWorkerData iwData = {};
 	MainSearchPatternData mainSearch = {};
 };
 

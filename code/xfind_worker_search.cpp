@@ -7,7 +7,6 @@ struct WorkerSearchData
 	Match* results;
 	volatile i32* resultsSize;
 	i32 resultsSizeLimit;
-	i32 fileIndex;
 	b32 trackLineIndex;
 };
 
@@ -23,7 +22,6 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
 	Match* results = wdata->results;
 	String pattern = wdata->pattern;
-	i32 fi = wdata->fileIndex;
 
 	if (*wdata->resultsSize >= resultsSizeLimit)
 	{
@@ -72,7 +70,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 			}
 
 			Match match = {};
-			match.index = fi;
+			match.file = filei;
 			match.lineIndex = 0;
 			match.offset_in_line = (i32)(at - linestart);
 			match.matching_length = pattern.size;
@@ -116,29 +114,28 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 
 	MainSearchPatternData* wdata = (MainSearchPatternData*)data;
 	String pattern = wdata->pattern;
-	FileIndexEntry* files = wdata->files;
-	i32 filesSize = wdata->filesSize;
+	FileIndex* fileIndex = wdata->fileIndex;
 	Match* results = wdata->results;
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
-	State& state = *wdata->state;
+	State* state = wdata->state;
 
 	if (pattern.size > 0)
 	{
-		if (state.config.searchFileNames)
+		if (state->config.searchFileNames)
 		{
 			// Search the file name
-			for (i32 fi = 0; fi < filesSize; ++fi)
+			for (FileIndexEntry* file = state->index.firstFile; file; file = file->next)
 			{
 				if (workerSearchPatternShouldStop)
 					return;
 
 				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
-				searchData->content = files[fi].relpath;
+				searchData->content = file->relpath;
 				searchData->pattern = pattern;
 				searchData->results = results;
 				searchData->resultsSize = wdata->resultsSize;
 				searchData->resultsSizeLimit = resultsSizeLimit;
-				searchData->fileIndex = fi;
+				searchData->file = file;
 				searchData->trackLineIndex = false;
 
 				InterlockedIncrement(&searchInProgress);
@@ -149,12 +146,12 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 		if (*wdata->resultsSize < resultsSizeLimit)
 		{
 			// Search the file content.
-			for (i32 fi = 0; fi < filesSize; ++fi)
+			for (FileIndexEntry* file = state->index.firstFile; file; file = file->next)
 			{
 				if (workerSearchPatternShouldStop)
 					return;
-				String filepath = files[fi].path;
-				String content = files[fi].content;
+				String filepath = file->path;
+				String content = file->content;
 
 				if (content.size <= 0)
 					continue;
@@ -162,11 +159,10 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
 				searchData->content = content;
 				searchData->pattern = pattern;
-				searchData->file = files + fi;
+				searchData->file = file;
 				searchData->results = results;
 				searchData->resultsSize = wdata->resultsSize;
 				searchData->resultsSizeLimit = resultsSizeLimit;
-				searchData->fileIndex = fi;
 				searchData->trackLineIndex = true;
 
 				InterlockedIncrement(&searchInProgress);
@@ -179,7 +175,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 }
 
 
-internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* state, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndexEntry* files, i32 filesSize, String pattern)
+internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* state, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndex* fileIndex, String pattern)
 {
 	{
 		//u64 ticksStart = getTickCount();
@@ -195,8 +191,7 @@ internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* 
 
 		//u64 ticksStart = getTickCount();
 
-		searchData->files = files;
-		searchData->filesSize = filesSize;
+		searchData->fileIndex = fileIndex;
 		searchData->pattern = pattern;
 		searchData->results = results;
 		searchData->resultsSize = resultsSize;
