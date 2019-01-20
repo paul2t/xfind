@@ -148,7 +148,7 @@ float time = 0;
 float dy;
 float targetScroll = 0;
 
-internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndexEntry* files, i32& selectedLine)
+internal void showResults(State& state, Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndexEntry* files, i32& selectedLine)
 {
 	if (resultsSize <= 0)
 	{

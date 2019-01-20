@@ -104,16 +104,6 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	InterlockedDecrement(&searchInProgress);
 }
 
-struct MainSearchPatternData
-{
-	String pattern;
-	volatile i32* resultsSize;
-	Match* results;
-	i32 resultsSizeLimit;
-	FileIndexEntry* files;
-	i32 filesSize;
-};
-
 volatile u32 mainWorkerSearchPatternShouldStop;
 
 MemoryArena searchArena = {};
@@ -130,6 +120,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 	i32 filesSize = wdata->filesSize;
 	Match* results = wdata->results;
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
+	State& state = *wdata->state;
 
 	if (pattern.size > 0)
 	{
@@ -188,7 +179,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 }
 
 
-internal void searchForPatternInFiles(MainSearchPatternData* searchData, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndexEntry* files, i32 filesSize, String pattern)
+internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* state, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndexEntry* files, i32 filesSize, String pattern)
 {
 	{
 		//u64 ticksStart = getTickCount();
@@ -210,6 +201,7 @@ internal void searchForPatternInFiles(MainSearchPatternData* searchData, WorkQue
 		searchData->results = results;
 		searchData->resultsSize = resultsSize;
 		searchData->resultsSizeLimit = resultsMaxSize;
+		searchData->state = state;
 
 		searchInProgress = 1;
 		addEntryToWorkQueue(queue, mainWorkerSearchPattern, searchData);

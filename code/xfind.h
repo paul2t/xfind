@@ -33,8 +33,8 @@ static ProgramString programStrings[] =
 
 
 
-#define DEFAULT_WIDTH 1280
-#define DEFAULT_HEIGHT 720
+#define DEFAULT_WINDOW_WIDTH 1280
+#define DEFAULT_WINDOW_HEIGHT 720
 #define DEFAULT_MAXIMIZED 0
 
 #define SHOW_RELATIVE_PATH 1
@@ -48,7 +48,7 @@ struct Config
 {
 	String content;
 
-	i32 width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT;
+	i32 width = DEFAULT_WINDOW_WIDTH, height = DEFAULT_WINDOW_HEIGHT;
 	b32 maximized = DEFAULT_MAXIMIZED;
 	bool showProgram = true;
 	bool showFolderAndExt = true;
@@ -78,13 +78,13 @@ struct FileIndexEntry
 	String relpath = {};
 	String content = {};
 	FILETIME lastWriteTime = {};
-	FileIndexEntry* next = 0;
 };
 
 struct FileIndex
 {
-	FileIndexEntry* first = 0;
-	FileIndexEntry* freed = 0;
+	i32 maxSize = 1024 * 1024;
+	FileIndexEntry* files = 0;
+	volatile i32 filesSize = 0;
 };
 
 
@@ -92,51 +92,82 @@ struct FileIndex
 
 struct Match
 {
-	i32 index;
-	i32 lineIndex;
-	i32 line_start_offset_in_file;
-	i32 offset_in_line;
-	i32 matching_length;
-	String line;
+	i32 index = 0;
+	i32 lineIndex = 0;
+	i32 line_start_offset_in_file = 0;
+	i32 offset_in_line = 0;
+	i32 matching_length = 0;
+	String line = {};
 };
 
 
 
 struct IndexWorkerData
 {
-	String* paths;
-	i32 pathsSize;
-	FileIndexEntry* files;
-	volatile i32* filesSize;
-	String* extensions;
-	i32 extensionsSize;
-	i32 filesSizeLimit;
+	String* paths = 0;
+	i32 pathsSize = 0;
+	FileIndexEntry* files = 0;
+	volatile i32* filesSize = 0;
+	String* extensions = 0;
+	i32 extensionsSize = 0;
+	i32 filesSizeLimit = 0;
+	struct State* state = 0;
+};
+
+struct MainSearchPatternData
+{
+	String pattern = {};
+	volatile i32* resultsSize = 0;
+	Match* results = 0;
+	i32 resultsSizeLimit = 0;
+	FileIndexEntry* files = 0;
+	i32 filesSize = 0;
+	struct State* state = 0;
 };
 
 struct State
 {
+	MemoryArena arena = {};
 	Config config = {};
+	ThreadPool pool = {};
+	
+	b32 running = true;
 
+	b32 setFocusToFolderInput = false;
 	b32 setFocusToSearchInput = false;
+	b32 shouldWaitForEvent = false;
+	i32 selectedLine = 0;
 
 	FileIndex index = {};
 
 	Match* results = 0;
+	volatile i32 resultsMaxSize = 1000;
 	volatile i32 resultsSize = 0;
 
+	i32 searchPathsSizeMax = 1024;
+	String* searchPaths = 0;
+	b32 searchPathExists = 0;
+	i32 searchPathsSize = 0;
+
+	i32 extensionsMaxSize = 1024;
 	String* extensions = 0;
 	i32 extensionsSize = 0;
 
-	IndexWorkerData iwData = {};
-};
+	String searchBuffer = {};
+	b32 needToSearchAgain = false;
+	b32 needToGenerateIndex = false;
 
-static State state = {};
+
+	IndexWorkerData iwData = {};
+	MainSearchPatternData mainSearch = {};
+};
 
 
 
 
 #include "xfind_config.cpp"
 
+#include "imgui_utils.cpp"
 #include "xfind_utils.cpp"
 #include "xfind_ui.cpp"
 #include "xfind_worker_index.cpp"

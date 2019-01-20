@@ -40,6 +40,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	i32 filesSizeLimit = wdata->filesSizeLimit;
 	String* searchExtensions = wdata->extensions;
 	i32 searchExtensionsSize = wdata->extensionsSize;
+	State& state = *wdata->state;
 
 	i32 filesSize = 0;
 
@@ -174,11 +175,12 @@ internal void stopFileIndex(WorkQueue* queue, volatile i32* filesSize)
 	//u64 ticksEnd = getTickCount();
 	//printf("%llums to finish the index queue\n", ticksEnd - ticksStart);
 
+	indexingInProgress = 0;
 	*filesSize = 0;
 
 }
 
-internal void computeFileIndex(IndexWorkerData& iwdata, WorkQueue* queue, String* searchPaths, i32 searchPathsSize, String* searchExtensions, i32 searchExtensionsSize, FileIndexEntry* files, volatile i32* filesSize, i32 filesSizeLimit)
+internal void computeFileIndex(IndexWorkerData& iwdata, State* state, WorkQueue* queue, String* searchPaths, i32 searchPathsSize, String* searchExtensions, i32 searchExtensionsSize, FileIndexEntry* files, volatile i32* filesSize, i32 filesSizeLimit)
 {
 	stopFileIndex(queue, filesSize);
 
@@ -189,6 +191,7 @@ internal void computeFileIndex(IndexWorkerData& iwdata, WorkQueue* queue, String
 	iwdata.files = files;
 	iwdata.filesSize = filesSize;
 	iwdata.filesSizeLimit = filesSizeLimit;
+	iwdata.state = state;
 	indexingInProgress = 1;
 	addEntryToWorkQueue(queue, workerComputeIndex, &iwdata);
 }

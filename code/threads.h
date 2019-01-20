@@ -26,7 +26,7 @@ struct WorkQueue
 	WorkQueueEntry entries[4096];
 };
 
-b32 executeNextWorkQueueEntry(WorkQueue* queue)
+internal b32 executeNextWorkQueueEntry(WorkQueue* queue)
 {
 	b32 shouldSleep = false;
 
@@ -107,7 +107,7 @@ internal DWORD worker_thread(void* _data)
 	return 0;
 }
 
-void createWorkerThread(ThreadData* threadData, WorkQueue* queue)
+inline void createWorkerThread(ThreadData* threadData, WorkQueue* queue)
 {
 	threadData->queue = queue;
 	HANDLE threadHandle = CreateThread(0, 0, worker_thread, threadData, 0, 0);
@@ -124,6 +124,26 @@ internal i32 getNumberOfLogicalThreads(SYSTEM_INFO* infos = 0)
 	}
 	i32 nbLogicalCores = infos->dwNumberOfProcessors;
 	return nbLogicalCores;
+}
+
+
+struct ThreadPool
+{
+	WorkQueue queue = {};
+	i32 nbThreads = 0;
+	ThreadData* data = 0;
+};
+
+internal void initThreadPool(MemoryArena& arena, ThreadPool& pool)
+{
+	pool = {};
+	pool.nbThreads = getNumberOfLogicalThreads();
+	pool.data = pushArray(arena, ThreadData, pool.nbThreads);
+	pool.queue.semaphore = CreateSemaphoreEx(0, 0, pool.nbThreads, 0, 0, SEMAPHORE_ALL_ACCESS);
+	for (i32 i = 0; i < pool.nbThreads; ++i)
+	{
+		createWorkerThread(pool.data + i, &pool.queue);
+	}
 }
 
 
