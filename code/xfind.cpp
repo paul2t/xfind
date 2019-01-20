@@ -70,6 +70,8 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	ImGui::SetNextWindowPos(ImVec2());
 	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
 
+	bool showAbout = false;
+
 	// Draw menu bar
 	if (ImGui::BeginMenuBar())
 	{
@@ -127,6 +129,10 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 				}
 
 				ImGui::EndMenu();
+			}
+			if (ImGui::MenuItem("About"))
+			{
+				showAbout = true;
 			}
 			ImGui::EndMenu();
 		}
@@ -289,6 +295,18 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	}
 
 	ImGui::End();
+
+	if (showAbout)
+		ImGui::OpenPopup("About");
+	if (ImGui::BeginPopupModal("About", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("xfind alpha by paul2t");
+		ImGui::BulletText("Using imgui and glfw");
+		ImGui::BulletText("Font: liberation-mono.ttf");
+		if (ImGui::Button("OK"))
+			ImGui::CloseCurrentPopup();
+		ImGui::EndPopup();
+	}
 
 
 
