@@ -1,32 +1,4 @@
 
-struct Config
-{
-	String content;
-
-	i32 width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT;
-	b32 maximized = DEFAULT_MAXIMIZED;
-	bool showProgram = true;
-	bool showFolderAndExt = true;
-	bool showRelativePaths = true;
-	bool showHiddenFiles = false;
-	bool searchFileNames = true;
-	float fontSize = 20.0f;
-	String fontFile;
-
-
-	String path; // Should be first String ! (same order as configKeys)
-	String ext;
-	String tool;
-};
-
-static Config config = {};
-
-String configKeys[] = {
-	make_lit_string("folders="),
-	make_lit_string("extensions="),
-	make_lit_string("tool="),
-};
-
 #define CONFIG_FILE_NAME "xfind.ini"
 Config readConfig(MemoryArena& arena)
 {

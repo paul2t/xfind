@@ -1,5 +1,4 @@
 
-
 volatile b32 workerSearchPatternShouldStop;
 volatile b32 workerLoadIndexShouldStop;
 volatile b32 workerIndexerShouldStop;
@@ -11,7 +10,7 @@ volatile u32 searchInProgress;
 internal WORK_QUEUE_CALLBACK(workerLoadFileToMemory)
 {
 	if (workerLoadIndexShouldStop) return;
-	FileIndex* fileIndex = (FileIndex*)data;
+	FileIndexEntry* fileIndex = (FileIndexEntry*)data;
 	fileIndex->lastWriteTime = GetLastWriteTime(fileIndex->path.str);
 	FILE* file = fopen(fileIndex->path.str, "rb");
 	if (file)
@@ -23,17 +22,6 @@ internal WORK_QUEUE_CALLBACK(workerLoadFileToMemory)
 	}
 	InterlockedDecrement(&indexingInProgress);
 }
-
-struct IndexWorkerData
-{
-	String* paths;
-	i32 pathsSize;
-	FileIndex* files;
-	volatile i32* filesSize;
-	String* extensions;
-	i32 extensionsSize;
-	i32 filesSizeLimit;
-};
 
 MemoryArena indexArena = {};
 internal WORK_QUEUE_CALLBACK(workerComputeIndex)
@@ -48,7 +36,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	IndexWorkerData* wdata = (IndexWorkerData*)data;
 	String* searchPaths = wdata->paths;
 	i32 searchPathsSize = wdata->pathsSize;
-	FileIndex* files = wdata->files;
+	FileIndexEntry* files = wdata->files;
 	i32 filesSizeLimit = wdata->filesSizeLimit;
 	String* searchExtensions = wdata->extensions;
 	i32 searchExtensionsSize = wdata->extensionsSize;
@@ -83,7 +71,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 			if (workerIndexerShouldStop) return;
 			if (current->found)
 			{
-				if (!isHidden(current) || config.showHiddenFiles)
+				if (!isHidden(current) || state.config.showHiddenFiles)
 				{
 					if (isDir(current))
 					{
@@ -123,7 +111,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 							}
 							if (matchext)
 							{
-								FileIndex* fileIndex = files + filesSize;
+								FileIndexEntry* fileIndex = files + filesSize;
 								String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
 								append(&file, searchPath);
 								append(&file, filename);
@@ -173,7 +161,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	//printMemUsage(indexArena);
 }
 
-internal void computeFileIndex(IndexWorkerData& iwdata, WorkQueue* queue, String* searchPaths, i32 searchPathsSize, String* searchExtensions, i32 searchExtensionsSize, FileIndex* files, volatile i32* filesSize, i32 filesSizeLimit)
+internal void stopFileIndex(WorkQueue* queue, volatile i32* filesSize)
 {
 	//u64 ticksStart = getTickCount();
 	workerIndexerShouldStop = true;
@@ -187,6 +175,12 @@ internal void computeFileIndex(IndexWorkerData& iwdata, WorkQueue* queue, String
 	//printf("%llums to finish the index queue\n", ticksEnd - ticksStart);
 
 	*filesSize = 0;
+
+}
+
+internal void computeFileIndex(IndexWorkerData& iwdata, WorkQueue* queue, String* searchPaths, i32 searchPathsSize, String* searchExtensions, i32 searchExtensionsSize, FileIndexEntry* files, volatile i32* filesSize, i32 filesSizeLimit)
+{
+	stopFileIndex(queue, filesSize);
 
 	iwdata.paths = searchPaths;
 	iwdata.pathsSize = searchPathsSize;

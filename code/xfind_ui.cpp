@@ -1,4 +1,43 @@
 
+void execOpenFile(String program, String filename, i32 fileline, i32 column)
+{
+	char buff[4096];
+	String call = make_fixed_width_string(buff);
+	for (i32 ci = 0; ci < program.size; ++ci)
+	{
+		char c = program.str[ci];
+		if (c == '%')
+		{
+			char c2 = program.str[ci + 1];
+			if (c2 == 'p')
+			{
+				append(&call, filename);
+				++ci;
+			}
+			else if (c2 == 'l')
+			{
+				append_int_to_str(&call, fileline);
+				++ci;
+			}
+			else if (c2 == 'c')
+			{
+				append_int_to_str(&call, column);
+				++ci;
+			}
+			else
+			{
+				append(&call, c);
+			}
+		}
+		else
+		{
+			append(&call, c);
+		}
+	}
+	terminate_with_null(&call);
+	execProgram(call.str);
+}
+
 internal void showInput(char* name, float maxWidth, float lablelWidth, const ImVec4& labelColor = *(ImVec4*)0)
 {
 	ImGui::SetCursorPosX(maxWidth + 10 - lablelWidth);
@@ -109,7 +148,7 @@ float time = 0;
 float dy;
 float targetScroll = 0;
 
-internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndex* files, i32& selectedLine)
+internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndexEntry* files, i32& selectedLine)
 {
 	if (resultsSize <= 0)
 	{
@@ -190,12 +229,12 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 		if (ImGui::IsMouseClicked(0))
 		{
 			selectedLine = hoverIndex;
-			setFocusToSearchInput = true;
+			state.setFocusToSearchInput = true;
 		}
 		if (ImGui::IsMouseDoubleClicked(0))
 		{
 			Match match = results[hoverIndex];
-			execOpenFile(config.tool, files[match.index].path, match.lineIndex, match.offset_in_line + 1);
+			execOpenFile(state.config.tool, files[match.index].path, match.lineIndex, match.offset_in_line + 1);
 			//Sleep(10);
 			//SetForegroundWindow(glfwGetWin32Window(window));
 		}
@@ -205,8 +244,8 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 	{
 		bool highlighted = (ri == selectedLine);
 		Match match = results[ri];
-		FileIndex fileindex = files[match.index];
-		String filename = config.showRelativePaths ? fileindex.relpath : fileindex.path;
+		FileIndexEntry fileindex = files[match.index];
+		String filename = state.config.showRelativePaths ? fileindex.relpath : fileindex.path;
 
 		float scrollMax = ImGui::GetScrollMaxY();
 		float scroll = ImGui::GetScrollY();
@@ -252,7 +291,7 @@ internal void showResults(Match* results, i32 resultsSize, i32 resultsSizeLimit,
 		}
 		else
 		{
-			showHighlightedText(filename, match.offset_in_line + (config.showRelativePaths ? 0 : (fileindex.path.size - fileindex.relpath.size)), match.matching_length);
+			showHighlightedText(filename, match.offset_in_line + (state.config.showRelativePaths ? 0 : (fileindex.path.size - fileindex.relpath.size)), match.matching_length);
 		}
 	}
 

@@ -3,7 +3,7 @@ struct WorkerSearchData
 {
 	String content;
 	String pattern;
-	FileIndex* file;
+	FileIndexEntry* file;
 	Match* results;
 	volatile i32* resultsSize;
 	i32 resultsSizeLimit;
@@ -31,7 +31,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		return;
 	}
 
-	FileIndex* filei = wdata->file;
+	FileIndexEntry* filei = wdata->file;
 	if (filei)
 	{
 		if (workerSearchPatternShouldStop)
@@ -110,7 +110,7 @@ struct MainSearchPatternData
 	volatile i32* resultsSize;
 	Match* results;
 	i32 resultsSizeLimit;
-	FileIndex* files;
+	FileIndexEntry* files;
 	i32 filesSize;
 };
 
@@ -126,14 +126,14 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 
 	MainSearchPatternData* wdata = (MainSearchPatternData*)data;
 	String pattern = wdata->pattern;
-	FileIndex* files = wdata->files;
+	FileIndexEntry* files = wdata->files;
 	i32 filesSize = wdata->filesSize;
 	Match* results = wdata->results;
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
 
 	if (pattern.size > 0)
 	{
-		if (config.searchFileNames)
+		if (state.config.searchFileNames)
 		{
 			// Search the file name
 			for (i32 fi = 0; fi < filesSize; ++fi)
@@ -188,7 +188,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 }
 
 
-internal void searchForPatternInFiles(MainSearchPatternData* searchData, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndex* files, i32 filesSize, String pattern)
+internal void searchForPatternInFiles(MainSearchPatternData* searchData, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndexEntry* files, i32 filesSize, String pattern)
 {
 	{
 		//u64 ticksStart = getTickCount();
