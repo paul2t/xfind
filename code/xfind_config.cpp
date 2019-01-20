@@ -10,7 +10,18 @@ Config readConfig(MemoryArena& arena)
 		i32 nbLines = 0;
 		String* lines = getLines(arena, conf.content, nbLines, true, true, true);
 		String* oconfig = &conf.path;
-		for (i32 linei = 0; linei < nbLines; ++linei)
+		i32 firstLineIndex = 0;
+		if (nbLines > 0)
+		{
+			if (lines[0].str[0] == '[')
+			{
+				++firstLineIndex;
+				char* end;
+				conf.version = fastStringToU32(lines[0].str, end);
+			}
+		}
+
+		for (i32 linei = firstLineIndex; linei < nbLines; ++linei)
 		{
 			String line = lines[linei];
 			for (int ki = 0; ki < ArrayCount(configKeys); ++ki)
@@ -50,6 +61,20 @@ Config readConfig(MemoryArena& arena)
 			if (match(line, make_lit_string("no_file_name_search")))
 				conf.searchFileNames = false;
 		}
+
+		if (conf.version == 0)
+		{
+			for (i32 i = 0; i < conf.tool.size; ++i)
+			{
+				char c = conf.tool.str[i];
+				char c2 = conf.tool.str[i + 1];
+				if (c == '%' && (c2 == 'p' || c2 == 'l' || c2 == 'c'))
+				{
+					conf.tool.str[i] = argChar;
+				}
+			}
+		}
+		conf.version = CONFIG_LATEST_VERSION;
 	}
 	return conf;
 }
@@ -59,6 +84,7 @@ void writeConfig(Config conf)
 	FILE* configFile = fopen(CONFIG_FILE_NAME, "w");
 	if (configFile)
 	{
+		fprintf(configFile, "[%d] # version\n", conf.version);
 		String* oconfig = &conf.path;
 		fprintf(configFile, "window=%u %u %u\n", conf.width, conf.height, conf.maximized);
 		fprintf(configFile, "font=%f %.*s\n", conf.fontSize, strexp(conf.fontFile));

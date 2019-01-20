@@ -6,28 +6,29 @@ void execOpenFile(String program, String filename, i32 fileline, i32 column)
 	for (i32 ci = 0; ci < program.size; ++ci)
 	{
 		char c = program.str[ci];
-		if (c == '%')
+		if (char_is_slash(c) && call.size > 0 && char_is_slash(call.str[call.size - 1])) continue;
+
+		if (0 == strncmp(program.str + ci, ARG_HOME, sizeof(ARG_HOME) - 1))
 		{
-			char c2 = program.str[ci + 1];
-			if (c2 == 'p')
-			{
-				append(&call, filename);
-				++ci;
-			}
-			else if (c2 == 'l')
-			{
-				append_int_to_str(&call, fileline);
-				++ci;
-			}
-			else if (c2 == 'c')
-			{
-				append_int_to_str(&call, column);
-				++ci;
-			}
-			else
-			{
-				append(&call, c);
-			}
+			String tail = tailstr(call);
+			DWORD envSize = GetEnvironmentVariableA("home", tail.str, tail.memory_size);
+			call.size += envSize;
+			ci += sizeof(ARG_HOME) - 1 - 1;
+		}
+		else if (0 == strncmp(program.str+ci, ARG_PATH, sizeof(ARG_PATH)-1))
+		{
+			append(&call, filename);
+			ci += sizeof(ARG_PATH) - 1 - 1;
+		}
+		else if (0 == strncmp(program.str+ci, ARG_LINE, sizeof(ARG_LINE)-1))
+		{
+			append_int_to_str(&call, fileline);
+			ci += sizeof(ARG_LINE) - 1 - 1;
+		}
+		else if (0 == strncmp(program.str+ci, ARG_COL, sizeof(ARG_COL)-1))
+		{
+			append_int_to_str(&call, column);
+			ci += sizeof(ARG_COL) - 1 - 1;
 		}
 		else
 		{

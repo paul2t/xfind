@@ -13,6 +13,11 @@
 #include "threads.h"
 
 
+const char argChar = '?';
+#define ARG_PATH "?p"
+#define ARG_LINE "?l"
+#define ARG_COL "?c"
+#define ARG_HOME "%HOME%"
 
 struct ProgramString
 {
@@ -23,11 +28,11 @@ struct ProgramString
 
 static ProgramString programStrings[] =
 {
-	{ make_lit_string("Sublime Text 3"), make_lit_string("\"C:\\Program Files\\Sublime Text 3\\sublime_text.exe\" \"%p:%l:%c\""), },
-	{ make_lit_string("Notepad++"), make_lit_string("\"C:\\Program Files (x86)\\Notepad++\\notepad++.exe\" \"%p\" -n%l -c%c"), },
-	{ make_lit_string("VS Code"), make_lit_string("\"C:\\Users\\xf4\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" -g \"%p:%l:%c\""), },
-	{ make_lit_string("Emacs"), make_lit_string("emacsclient +%l:%c \"%p\""), true, },
-	{ make_lit_string("GVim"), make_lit_string("gvim '+normal %lG%c|' \"%p\""), true, },
+	{ make_lit_string("Sublime Text 3"), make_lit_string("\"C:\\Program Files\\Sublime Text 3\\sublime_text.exe\" \""ARG_PATH":"ARG_LINE":"ARG_COL"\""), },
+	{ make_lit_string("Notepad++"), make_lit_string("\"C:\\Program Files (x86)\\Notepad++\\notepad++.exe\" \""ARG_PATH"\" -n"ARG_LINE" -c"ARG_COL), },
+	{ make_lit_string("VS Code"), make_lit_string("\"%HOME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" -g \""ARG_PATH":"ARG_LINE":"ARG_COL"\""), },
+	{ make_lit_string("Emacs"), make_lit_string("emacsclient +"ARG_LINE":"ARG_COL" \""ARG_PATH"\""), true, },
+	{ make_lit_string("GVim"), make_lit_string("gvim '+normal "ARG_LINE"G"ARG_COL"|' \""ARG_PATH"\""), true, },
 };
 
 
@@ -46,7 +51,9 @@ static ImColor highlightColor = ImVec4(0.43f, 0, 0, 255);
 
 struct Config
 {
+#define CONFIG_LATEST_VERSION 1
 	String content;
+	i32 version = 0;
 
 	i32 width = DEFAULT_WINDOW_WIDTH, height = DEFAULT_WINDOW_HEIGHT;
 	b32 maximized = DEFAULT_MAXIMIZED;

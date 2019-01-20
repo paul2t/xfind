@@ -200,11 +200,11 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::BeginTooltip();
-				ImGui::Text("%%p = path of the file to open");
-				ImGui::Text("%%l = line in the file to open");
-				ImGui::Text("%%c = column in the file to open");
+				ImGui::Text("%s = path of the file to open", ARG_PATH);
+				ImGui::Text("%s = line in the file to open", ARG_LINE);
+				ImGui::Text("%s = column in the file to open", ARG_COL);
 				ImGui::Text("Make sure the path is contained withing quotes");
-				ImGui::Text("For Sublime Text, the arguments are : \"%%p:%%l:%%c\"");
+				ImGui::Text("For Sublime Text, the arguments are : \"%s:%s:%s\"", ARG_PATH, ARG_LINE, ARG_COL);
 				ImGui::Text("You can hide this input in the options");
 				ImGui::Text("You can set some templates from the Help menu.");
 				ImGui::EndTooltip();
