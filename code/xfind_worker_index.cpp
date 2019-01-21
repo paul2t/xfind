@@ -177,7 +177,9 @@ internal void stopFileIndex(State* state)
 
 	indexingInProgress = 0;
 	state->index.filesSize = 0;
-
+	state->index.firstFile = 0;
+	state->index.arena.Release();
+	state->index.onePastLastFile = &state->index.firstFile;
 }
 
 internal void computeFileIndex(State* state)

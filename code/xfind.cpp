@@ -252,6 +252,13 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 
 		inputModified = modifProgram || modifExtensions || modifFolders || modifSearch;
 		searchModified = modifSearch;
+		if (modifFolders || modifExtensions || state.needToGenerateIndex)
+		{
+			if (indexingInProgress)
+			{
+				stopFileIndex(&state);
+			}
+		}
 		if (modifFolders)
 		{
 			state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
@@ -270,10 +277,6 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 				computeFileIndex(&state);
 				state.needToSearchAgain = true;
 				state.needToGenerateIndex = false;
-			}
-			else if (indexingInProgress)
-			{
-				stopFileIndex(&state);
 			}
 		}
 	}
