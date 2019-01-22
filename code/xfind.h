@@ -11,6 +11,7 @@
 #include "utils.cpp"
 #include "directory.h"
 #include "threads.h"
+#include "search_state_machine.cpp"
 
 
 const char argChar = '?';
@@ -150,6 +151,7 @@ struct State
 	i32 extensionsSize = 0;
 
 	String searchBuffer = {};
+	MemoryArena searchArena = {};
 	b32 needToSearchAgain = false;
 	b32 needToGenerateIndex = false;
 

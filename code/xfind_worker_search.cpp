@@ -3,6 +3,7 @@ struct WorkerSearchData
 {
 	String content;
 	String pattern;
+	SearchStateMachine ssm;
 	FileIndexEntry* file;
 	Match* results;
 	volatile i32* resultsSize;
@@ -22,6 +23,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
 	Match* results = wdata->results;
 	String pattern = wdata->pattern;
+	SearchStateMachine ssm = wdata->ssm;
 
 	if (*wdata->resultsSize >= resultsSizeLimit)
 	{
@@ -52,6 +54,49 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		}
 	}
 
+#define USE_SEARCH_STATE_MACHINE 1
+#if USE_SEARCH_STATE_MACHINE
+	for (SearchResult res = searchPattern(content, ssm); res.match.size; res = searchPattern(content, ssm, res))
+	{
+		i32 resultIndex = (i32)InterlockedIncrement((u32*)wdata->resultsSize) - 1;
+		if (resultIndex >= resultsSizeLimit)
+		{
+			*wdata->resultsSize = resultsSizeLimit;
+			break;
+		}
+
+		Match match = {};
+		match.file = filei;
+		match.lineIndex = 0;
+		match.offset_in_line = (i32)(res.match.str - res.linestart);
+		match.matching_length = pattern.size;
+
+		if (trackLineIndex)
+		{
+			match.lineIndex = res.lineIndex;
+
+			match.line_start_offset_in_file = (i32)(res.linestart - content.str);
+
+			match.line.str = res.linestart;
+			match.line.size = match.offset_in_line + match.matching_length;
+			while (match.line.str[match.line.size] && match.line.str[match.line.size] != '\n' && match.line.str[match.line.size] != '\r') ++match.line.size;
+
+			// We only need one match per line : Skip until the end of the line.
+			char* at = match.line.str + match.line.size + 1;
+			if (match.line.str[match.line.size] == '\r') ++at;
+
+			res.state = ssm.states;
+			res.match.str = at;
+			res.match.size = 0;
+			res.linestart = at;
+			res.lineIndex++;
+		}
+
+		results[resultIndex] = match;
+		if (!trackLineIndex || resultIndex >= resultsSizeLimit)
+			break;
+	}
+#else
 	i32 lineIndex = 1;
 	char* linestart = content.str;
 	for (int ati = 0; ati < content.size; ++ati)
@@ -98,17 +143,15 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 			linestart = content.str + ati + 1;
 		}
 	}
+#endif
 
 	InterlockedDecrement(&searchInProgress);
 }
 
 volatile u32 mainWorkerSearchPatternShouldStop;
 
-MemoryArena searchArena = {};
 internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 {
-	searchArena.Release();
-
 	if (workerSearchPatternShouldStop)
 		return;
 
@@ -118,9 +161,16 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 	Match* results = wdata->results;
 	i32 resultsSizeLimit = wdata->resultsSizeLimit;
 	State* state = wdata->state;
+	state->searchArena.Release();
+
 
 	if (pattern.size > 0)
 	{
+		SearchStateMachine ssm = {};
+#if USE_SEARCH_STATE_MACHINE
+		ssm = buildSearchStateMachine(state->searchArena, pattern, true);
+#endif
+
 		if (state->config.searchFileNames)
 		{
 			// Search the file name
@@ -129,9 +179,10 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				if (workerSearchPatternShouldStop)
 					return;
 
-				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
+				WorkerSearchData* searchData = pushStruct(state->searchArena, WorkerSearchData);
 				searchData->content = file->relpath;
 				searchData->pattern = pattern;
+				searchData->ssm = ssm;
 				searchData->results = results;
 				searchData->resultsSize = wdata->resultsSize;
 				searchData->resultsSizeLimit = resultsSizeLimit;
@@ -156,9 +207,10 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				if (content.size <= 0)
 					continue;
 
-				WorkerSearchData* searchData = pushStruct(searchArena, WorkerSearchData);
+				WorkerSearchData* searchData = pushStruct(state->searchArena, WorkerSearchData);
 				searchData->content = content;
 				searchData->pattern = pattern;
+				searchData->ssm = ssm;
 				searchData->file = file;
 				searchData->results = results;
 				searchData->resultsSize = wdata->resultsSize;
