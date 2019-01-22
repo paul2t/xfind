@@ -145,9 +145,9 @@ bool CubicUpdateFixedDuration1(float *P0, float *V0, float P1, float V1, float D
 }
 
 
-float time = 0;
-float dy;
-float targetScroll = 0;
+float scroll_time = 0;
+float scroll_dy;
+float scroll_target = 0;
 
 internal void showResults(State& state, Match* results, i32 resultsSize, i32 resultsSizeLimit, FileIndex* fileIndex, i32& selectedLine)
 {
@@ -186,17 +186,17 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 		selectedLine = 0;
 
 	float dt = ImGui::GetIO().DeltaTime;
-	if (time > 0)
+	if (scroll_time > 0)
 	{
 		float scroll = ImGui::GetScrollY();
-		CubicUpdateFixedDuration1(&scroll, &dy, targetScroll, 0.0f, time, dt);
+		CubicUpdateFixedDuration1(&scroll, &scroll_dy, scroll_target, 0.0f, scroll_time, dt);
 		ImGui::SetScrollY(scroll);
 
-		time -= dt;
-		if (time < 0)
+		scroll_time -= dt;
+		if (scroll_time < 0)
 		{
-			ImGui::SetScrollY(targetScroll);
-			time = 0;
+			ImGui::SetScrollY(scroll_target);
+			scroll_time = 0;
 		}
 	}
 
@@ -266,14 +266,14 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 				if (diffDown > 0)
 				{
 					//ImGui::SetScrollY((selectedLine + 1 + padding)*h - avail.y);
-					targetScroll = (selectedLine + 1 + padding)*h - avail.y;
-					time = 0.1f;
+					scroll_target = (selectedLine + 1 + padding)*h - avail.y;
+					scroll_time = 0.1f;
 				}
 				if (diffUp < 0)
 				{
 					//ImGui::SetScrollY((selectedLine - padding)*h);
-					targetScroll = (selectedLine - padding)*h;
-					time = 0.1f;
+					scroll_target = (selectedLine - padding)*h;
+					scroll_time = 0.1f;
 				}
 			}
 		}

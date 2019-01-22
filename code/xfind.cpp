@@ -82,7 +82,8 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			}
 			ImGui::EndMenu();
 		}
-		if (ImGui::BeginMenu("Options"))
+
+		if (ImGui::BeginMenu("Settings"))
 		{
 			if (ImGui::DragFloat("Font", &state.config.fontSize, 0.1f, 4, 100))
 			{
@@ -97,8 +98,11 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			ImGui::Checkbox("Show hidden files/dirs", &state.config.showHiddenFiles);
 			if (ImGui::Checkbox("Search file names", &state.config.searchFileNames))
 				state.needToSearchAgain = true;
+			if (ImGui::Checkbox("Case sensitive", &state.config.caseSensitive))
+				state.needToSearchAgain = true;
 			ImGui::EndMenu();
 		}
+
 		if (ImGui::BeginMenu("Tools"))
 		{
 			if (ImGui::MenuItem("Recompute the index"))
@@ -135,6 +139,17 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			}
 			ImGui::EndMenu();
 		}
+
+#if APP_INTERNAL
+		ImGui::PushStyleColor(ImGuiCol_Text, (ImU32)ImColor(1.f, 0.f, 0.f));
+		if (ImGui::BeginMenu("Debug"))
+		{
+			if (ImGui::Checkbox("Search State Machine", &state.useSSM))
+				state.needToSearchAgain = true;
+			ImGui::EndMenu();
+		}
+		ImGui::PopStyleColor();
+#endif
 		ImGui::EndMenuBar();
 	}
 
@@ -280,6 +295,10 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			}
 		}
 	}
+
+#if APP_INTERNAL
+	ImGui::Text("Debug : Search time %llums", searchTime);
+#endif
 
 	// Lauch search if input needed
 	if (!state.needToGenerateIndex && !indexingInProgress && (state.needToSearchAgain || searchModified) && state.searchPathExists)

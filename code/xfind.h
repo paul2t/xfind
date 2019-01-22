@@ -63,6 +63,7 @@ struct Config
 	bool showRelativePaths = true;
 	bool showHiddenFiles = false;
 	bool searchFileNames = true;
+	bool caseSensitive = false;
 	float fontSize = 20.0f;
 	String fontFile;
 
@@ -157,8 +158,14 @@ struct State
 
 
 	MainSearchPatternData mainSearch = {};
+
+	bool useSSM = true;
 };
 
+#if APP_INTERNAL
+internal volatile u64 searchTimeStart = 0;
+internal volatile u64 searchTime = 0;
+#endif
 
 
 

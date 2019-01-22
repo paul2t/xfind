@@ -60,6 +60,8 @@ Config readConfig(MemoryArena& arena)
 				conf.showHiddenFiles = true;
 			if (match(line, make_lit_string("no_file_name_search")))
 				conf.searchFileNames = false;
+			if (match(line, make_lit_string("case_sensitive")))
+				conf.caseSensitive = true;
 		}
 
 		if (conf.version == 0)
@@ -98,6 +100,8 @@ void writeConfig(Config conf)
 			fprintf(configFile, "show_hidden_files\n");
 		if (!conf.searchFileNames)
 			fprintf(configFile, "no_file_name_search\n");
+		if (conf.caseSensitive)
+			fprintf(configFile, "case_sensitive\n");
 
 		for (int ki = 0; ki < ArrayCount(configKeys); ++ki)
 		{
