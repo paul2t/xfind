@@ -357,6 +357,21 @@ int main()
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 #endif
 {
+#if APP_INTERNAL && 0
+	char* paths[] =
+	{
+		"C:\\work\\xfind\\data\\folder\\bin",
+		"C:\\work\\xfind\\data\\folder\\src",
+	};
+	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
+	WatchDirectory("C:\\work\\xfind\\data\\folder");
+	return 1;
+#endif
+#if APP_INTERNAL && 0
+	testSearch();
+	return 1;
+#endif
+
 	State state = {};
 	state.index.onePastLastFile = &state.index.firstFile; // This is because of an internal error in vs compiler.
 	Config iconfig = readConfig(state.arena);
