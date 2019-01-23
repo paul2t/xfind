@@ -28,7 +28,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	if (workerIndexerShouldStop) return;
 	//u64 ticksStart = getTickCount();
 
-	umm maxFileLength = MegaBytes(10);
+	umm maxFileLength = MegaBytes(1) - 1;
 	umm minFileLength = KiloBytes(4);
 
 	State* state = (State*)data;

@@ -21,7 +21,7 @@ In the command line, `?p` will be replaced by the path of the file. `?l` will be
 You can specify as many arguments as you whish. There are some examples in the help command. Only Sublime Text 3 has been tested.  
 When you close the program, the config you specified is saved in xfind.ini. It is restored when the program is launched.  
 
-The maximum file size allowed is 10MB. This is too prevent loading giant files. If the file is bigger, only the first 10MB are loaded.  
+The maximum file size allowed is 1MB. This is too prevent loading giant files. If the file is bigger, only the first 1MB are loaded.  
 The maximum number of results shown is 1000. Could be easily increased, but would slow down the search.  
 
 The indexing only consists of loading all the files into memory.  
