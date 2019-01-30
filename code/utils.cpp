@@ -21,6 +21,37 @@ internal_function umm getFileSize(HANDLE file)
 }
 
 // NOTE(xf4): A 0 is appended at the end of the buffer.
+internal_function String readEntireFile(const char* filename)
+{
+	String result = {};
+
+	FILE* file = fopen(filename, "rb");
+	if (file)
+	{
+		_fseeki64(file, 0, SEEK_END);
+		memid filesize = _ftelli64(file);
+		_fseeki64(file, 0, SEEK_SET);
+		char* buffer = (char*)malloc(sizeof(char) * filesize + 1);
+		memid nitemsRead = fread(buffer, 1, filesize, file);
+		if (nitemsRead == filesize)
+		{
+			result.str = buffer;
+			result.size = (i32)filesize;
+			result.memory_size = (i32)result.size + 1;
+			buffer[filesize] = 0;
+		}
+		else
+		{
+			free(buffer);
+			buffer = 0;
+		}
+		fclose(file);
+	}
+
+	return result;
+}
+
+// NOTE(xf4): A 0 is appended at the end of the buffer.
 internal_function String readEntireFile(MemoryArena& arena, const char* filename)
 {
 	String result = {};
@@ -34,18 +65,13 @@ internal_function String readEntireFile(MemoryArena& arena, const char* filename
 		_fseeki64(file, 0, SEEK_SET);
 		char* buffer = pushArray(arena, char, filesize + 1, pushpNoClear());
 		memid nitemsRead = fread(buffer, 1, filesize, file);
-		if (nitemsRead == filesize)
+		if (nitemsRead > 0)
 		{
 			result.str = buffer;
-			result.size = (i32)filesize;
+			result.size = (i32)nitemsRead;
 			result.memory_size = (i32)result.size+1;
-			buffer[filesize] = 0;
+			buffer[nitemsRead] = 0;
 			tempMem.commit();
-		}
-		else
-		{
-			buffer = 0;
-			filesize = 0;
 		}
 		fclose(file);
 	}

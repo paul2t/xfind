@@ -12,21 +12,6 @@ struct WorkerSearchData
 	b32 caseSensitive;
 };
 
-#if APP_INTERNAL
-
-void DEBUG_TEST_TIMER(u32 test, volatile u64& start, volatile u64& time)
-{
-	if (test && start)
-	{
-		time = GetTickCount64() - start;
-		start = 0;
-	}
-}
-
-#else
-#define DEBUG_TEST_TIMER(...)
-#endif
-
 
 internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 {

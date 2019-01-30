@@ -1,4 +1,65 @@
 
+#if APP_INTERNAL
+
+inline void DEBUG_TEST_TIMER(u32 test, volatile u64& start, volatile u64& time)
+{
+	if (test && start)
+	{
+		time = GetTickCount64() - start;
+		start = 0;
+	}
+}
+
+#else
+#define DEBUG_TEST_TIMER(...)
+#endif
+
+internal u32 hash(String s)
+{
+	char* at = s.str;
+	u32 result = 0;
+	for (i32 i = 0; i < s.size; ++i)
+		result = (result << 8 | result >> 24) + *at;
+	return result;
+}
+
+internal FileIndexEntry* getFileFromPath(FileIndex* fileIndex, String path)
+{
+	i32 pathHash = hash(path) % fileIndex->filePathHashSize;
+	FileIndexEntry* entry = fileIndex->filePathHash[pathHash];
+	while (entry && !match(entry->path, path)) entry = entry->nextInPathHash;
+	return entry;
+}
+
+internal FileIndexEntry* getOrCreateFileFromPath(FileIndex* fileIndex, String path, i32 rootSize = 0)
+{
+	i32 pathHash = hash(path) % fileIndex->filePathHashSize;
+	FileIndexEntry* entry = fileIndex->filePathHash[pathHash];
+	while (entry && !match(entry->path, path)) entry = entry->nextInPathHash;
+	if (!entry)
+	{
+		FileIndexEntry* firstEntry = fileIndex->filePathHash[pathHash];
+		entry = fileIndex->firstRemovedFile;
+		if (entry)
+			fileIndex->firstRemovedFile = entry->next;
+		else
+			entry = pushStruct(fileIndex->arena, FileIndexEntry);
+		entry->path = path;
+		entry->path.str = strdup(path.str);
+
+		entry->nextInPathHash = firstEntry;
+		fileIndex->filePathHash[pathHash] = entry;
+
+		entry->next = 0;
+		*fileIndex->onePastLastFile = entry;
+		fileIndex->onePastLastFile = &entry->next;
+	}
+
+	entry->relpath = substr(entry->path, rootSize);
+
+	return entry;
+}
+
 volatile b32 workerSearchPatternShouldStop;
 volatile b32 workerLoadIndexShouldStop;
 volatile b32 workerIndexerShouldStop;
@@ -6,21 +67,46 @@ volatile b32 workerIndexerShouldStop;
 volatile u32 indexingInProgress;
 volatile u32 searchInProgress;
 
+#define MAX_FILE_PARSED_SIZE (MegaBytes(1)-1)
 
-internal WORK_QUEUE_CALLBACK(workerLoadFileToMemory)
+internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 {
 	if (workerLoadIndexShouldStop) return;
 	FileIndexEntry* fileIndex = (FileIndexEntry*)data;
-	fileIndex->lastWriteTime = GetLastWriteTime(fileIndex->path.str);
-	FILE* file = fopen(fileIndex->path.str, "rb");
-	if (file)
+	FILETIME lastWriteTime = GetLastWriteTime(fileIndex->path.str);
+	if (CompareFileTime(&fileIndex->lastWriteTime, &lastWriteTime))
 	{
-		memid nitemsRead = fread(fileIndex->content.str, 1, fileIndex->content.memory_size - 1, file);
-		fileIndex->content.size = (i32)nitemsRead;
-		terminate_with_null(&fileIndex->content);
-		fclose(file);
+		fileIndex->lastWriteTime = lastWriteTime;
+
+		fileIndex->content.size = 0;
+		FILE* file = fopen(fileIndex->path.str, "rb");
+		if (file)
+		{
+			_fseeki64(file, 0, SEEK_END);
+			size_t newSize = _ftelli64(file);
+			if (newSize > MAX_FILE_PARSED_SIZE)
+				newSize = MAX_FILE_PARSED_SIZE;
+			rewind(file);
+
+			if (fileIndex->content.memory_size < newSize)
+			{
+				fileIndex->content.memory_size = (i32)(newSize * 1.5f);
+				if (fileIndex->content.memory_size > MAX_FILE_PARSED_SIZE + 1)
+					fileIndex->content.memory_size = MAX_FILE_PARSED_SIZE + 1;
+				fileIndex->content.str = (char*)realloc(fileIndex->content.str, fileIndex->content.memory_size);
+			}
+
+			memid nitemsRead = fread(fileIndex->content.str, 1, newSize, file);
+			fileIndex->content.size = (i32)nitemsRead;
+			terminate_with_null(&fileIndex->content);
+			fclose(file);
+		}
+
+		fileIndex->modifiedSinceLastSearch = true;
 	}
-	InterlockedDecrement(&indexingInProgress);
+	_WriteBarrier();
+	u32 test = InterlockedDecrement(&indexingInProgress);
+	DEBUG_TEST_TIMER(!test, indexTimeStart, indexTime);
 }
 
 internal WORK_QUEUE_CALLBACK(workerComputeIndex)
@@ -28,8 +114,9 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	if (workerIndexerShouldStop) return;
 	//u64 ticksStart = getTickCount();
 
-	umm maxFileLength = MegaBytes(1) - 1;
-	umm minFileLength = KiloBytes(4);
+#if APP_INTERNAL
+	treeTraversalTimeStart = GetTickCount64();
+#endif
 
 	State* state = (State*)data;
 	String* searchPaths = state->searchPaths;
@@ -38,13 +125,16 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	String* searchExtensions = state->extensions;
 	i32 searchExtensionsSize = state->extensionsSize;
 	MemoryArena& indexArena = state->index.arena;
-	indexArena.Release();
+	//indexArena.Release();
 	FileIndexEntry** onePastLastFile = fileIndex->onePastLastFile;
 
-	i32 filesSize = 0;
+	// TODO(xf4): make a separate array. Might be faster ?!?!
+	for (FileIndexEntry* ei = fileIndex->firstFile; ei; ei = ei->next)
+		ei->seenInIndex = false;
 
 	for (i32 pi = 0; pi < searchPathsSize; ++pi)
 	{
+		if (workerIndexerShouldStop) break;
 		char _pathbuffer[4096];
 		String searchPath = make_fixed_width_string(_pathbuffer);
 		copy(&searchPath, searchPaths[pi]);
@@ -68,7 +158,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 		i32 stackSize = 1;
 		while (stackSize > 0)
 		{
-			if (workerIndexerShouldStop) return;
+			if (workerIndexerShouldStop) break;
 			if (current->found)
 			{
 				if (!isHidden(current) || state->config.showHiddenFiles)
@@ -109,33 +199,15 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 						}
 						if (matchext)
 						{
-							FileIndexEntry* fileEntry = pushStruct(indexArena, FileIndexEntry);
-							*onePastLastFile = fileEntry;
-							onePastLastFile = &fileEntry->next;
-
-							String file = pushNewString(indexArena, searchPath.size + filename.size + 1);
-							append(&file, searchPath);
+							String file = searchPath;
 							append(&file, filename);
 							terminate_with_null(&file);
 
-							fileEntry->path = file;
-							fileEntry->relpath = substr(file, searchPaths[pi].size + 1);
-							umm fileLength = getFileSize(current);
-							fileEntry->content = {};
+							FileIndexEntry* fileEntry = getOrCreateFileFromPath(fileIndex, file, searchPaths[pi].size + 1);
+							fileEntry->seenInIndex = true;
 
-							{
-								umm allocSize = (umm)(1.5 * fileLength) + 1;
-								if (allocSize > maxFileLength + 1)
-									allocSize = maxFileLength + 1;
-								if (allocSize < minFileLength)
-									allocSize = minFileLength;
-								fileEntry->content.memory_size = (i32)allocSize;
-								fileEntry->content.size = 0;
-								fileEntry->content.str = pushArray(indexArena, char, allocSize, pushpNoClear());
-								InterlockedIncrement(&indexingInProgress);
-								addEntryToWorkQueue(queue, workerLoadFileToMemory, fileEntry);
-							}
-							filesSize++;
+							InterlockedIncrement(&indexingInProgress);
+							addEntryToWorkQueue(queue, workerReloadFileToMemory, fileEntry);
 						}
 					}
 				}
@@ -153,10 +225,59 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 		}
 	}
 
+	// NOTE(xf4): Remove files that haven't been seen while searching.
+	i32 filesSize = 0;
+	FileIndexEntry _tmpe = {};
+	for (FileIndexEntry* ei = fileIndex->firstFile, **prevnext = &fileIndex->firstFile; ei; ei = ei->next)
+	{
+		if (workerIndexerShouldStop) break;
+		++filesSize;
+		if (!ei->seenInIndex)
+		{
+			--filesSize;
+
+			FileIndexEntry* nexte = ei->next;
+			u32 hid = hash(ei->path) % fileIndex->filePathHashSize;
+			FileIndexEntry** firstH = &fileIndex->filePathHash[hid];
+			for (; *firstH; firstH = &((*firstH)->nextInPathHash))
+			{
+				if (match((*firstH)->path, ei->path))
+				{
+					auto** nextH = &(*firstH)->nextInPathHash;
+					*firstH = *nextH;
+					firstH = nextH;
+					break;
+				}
+			}
+			ei->nextInPathHash = 0;
+
+
+			free(ei->content.str);
+			free(ei->path.str);
+			*ei = {};
+			ei->next = fileIndex->firstRemovedFile;
+			fileIndex->firstRemovedFile = ei;
+			if (fileIndex->onePastLastFile == &ei->next)
+				fileIndex->onePastLastFile = prevnext;
+			*prevnext = nexte;
+
+			ei = &_tmpe;
+			ei->next = nexte;
+		}
+		else
+		{
+			prevnext = &ei->next;
+		}
+	}
+
 	fileIndex->filesSize = filesSize;
 
-	InterlockedDecrement(&indexingInProgress);
+	u32 test = InterlockedDecrement(&indexingInProgress);
+	DEBUG_TEST_TIMER(!test, indexTimeStart, indexTime);
 
+#if APP_INTERNAL
+	treeTraversalTime = GetTickCount64() - treeTraversalTimeStart;
+#endif
 	//u64 ticksEnd = getTickCount();
 	//printf("Found %d files in %llums\n", filesSize, (ticksEnd - ticksStart));
 	//printMemUsage(indexArena);
@@ -176,14 +297,18 @@ internal void stopFileIndex(State* state)
 	//printf("%llums to finish the index queue\n", ticksEnd - ticksStart);
 
 	indexingInProgress = 0;
-	state->index.filesSize = 0;
-	state->index.firstFile = 0;
-	state->index.arena.Release();
-	state->index.onePastLastFile = &state->index.firstFile;
+	//state->index.filesSize = 0;
+	//state->index.firstFile = 0;
+	//state->index.arena.Release();
+	//state->index.onePastLastFile = &state->index.firstFile;
 }
 
 internal void computeFileIndex(State* state)
 {
+#if APP_INTERNAL
+	indexTimeStart = GetTickCount64();
+#endif
+
 	stopFileIndex(state);
 
 	indexingInProgress = 1;

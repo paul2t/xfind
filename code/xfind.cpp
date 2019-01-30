@@ -297,7 +297,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	}
 
 #if APP_INTERNAL
-	ImGui::Text("Debug : Search time %llums", searchTime);
+	ImGui::Text("Debug : Index time %llums (tt:%llu) | Search time %llums", indexTime, treeTraversalTime, searchTime);
 #endif
 
 	// Lauch search if input needed

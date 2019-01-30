@@ -14,7 +14,7 @@ call where ctime 1>NUL 2>NUL
 IF NOT "%ERRORLEVEL%" == "0" set UseCtime=0
 IF "%UseCtime%" == "1" ctime -begin tests.ctm
 
-set IgnoredWarnings=-D_CRT_SECURE_NO_WARNINGS -wd4201 -wd4702 -wd4127 -wd4100 -wd4189 -wd4505 -wd4408 -wd4706 -wd4701 -wd4703
+set IgnoredWarnings=-D_CRT_SECURE_NO_WARNINGS -wd4201 -wd4702 -wd4127 -wd4100 -wd4189 -wd4505 -wd4408 -wd4706 -wd4701 -wd4703 /EHsc
 set CommonCompilerFlags=-MD -nologo -fp:fast -Gm- -GR- -EHa- -Oi -WX -W4 -DAPP_WIN32=1 -FC -Z7 %IgnoredWarnings% /I..\code /I..\code\glfw /I..\code\imgui
 if %RELEASE% EQU 1 set DEBUG=0 && set INTERNAL=0
 if %DEBUG% EQU 1 ( set CommonCompilerFlags=%CommonCompilerFlags% -Od

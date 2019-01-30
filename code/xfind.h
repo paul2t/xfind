@@ -88,14 +88,22 @@ struct FileIndexEntry
 	String content = {};
 	FILETIME lastWriteTime = {};
 	FileIndexEntry* next = 0;
+	FileIndexEntry* nextInPathHash = 0;
+	b32 seenInIndex = false;
+	volatile b32 modifiedSinceLastSearch = false;
 };
 
+#define PATH_HASH_SIZE 4096
 struct FileIndex
 {
 	MemoryArena arena = {};
 	FileIndexEntry* firstFile = 0;
 	FileIndexEntry** onePastLastFile = 0;
+	FileIndexEntry* filePathHash[PATH_HASH_SIZE];
+	FileIndexEntry* firstRemovedFile = 0;
+	const u32 filePathHashSize = PATH_HASH_SIZE;
 	volatile i32 filesSize = 0;
+	volatile b32 modifiedSinceLastSearch = false;
 };
 
 
@@ -163,6 +171,10 @@ struct State
 };
 
 #if APP_INTERNAL
+internal volatile u64 indexTimeStart = 0;
+internal volatile u64 indexTime = 0;
+internal volatile u64 treeTraversalTimeStart = 0;
+internal volatile u64 treeTraversalTime = 0;
 internal volatile u64 searchTimeStart = 0;
 internal volatile u64 searchTime = 0;
 #endif
