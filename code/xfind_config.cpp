@@ -76,7 +76,6 @@ Config readConfig(MemoryArena& arena)
 				}
 			}
 		}
-		conf.version = CONFIG_LATEST_VERSION;
 	}
 	return conf;
 }
@@ -86,7 +85,7 @@ void writeConfig(Config conf)
 	FILE* configFile = fopen(CONFIG_FILE_NAME, "w");
 	if (configFile)
 	{
-		fprintf(configFile, "[%d] # version\n", conf.version);
+		fprintf(configFile, "[%d] # version\n", CONFIG_LATEST_VERSION);
 		String* oconfig = &conf.path;
 		fprintf(configFile, "window=%u %u %u\n", conf.width, conf.height, conf.maximized);
 		fprintf(configFile, "font=%f %.*s\n", conf.fontSize, strexp(conf.fontFile));
