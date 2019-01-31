@@ -136,6 +136,11 @@ struct State
 	MemoryArena arena = {};
 	Config config = {};
 	ThreadPool pool = {};
+
+	MemoryArena watchArena = {};
+	ThreadPool dirWatchThread = {};
+	String* watchPaths = 0;
+	i32 watchPathsSize = 0;
 	
 	b32 running = true;
 
@@ -162,7 +167,7 @@ struct State
 	String searchBuffer = {};
 	MemoryArena searchArena = {};
 	b32 needToSearchAgain = false;
-	b32 needToGenerateIndex = false;
+	volatile b32 needToGenerateIndex = false;
 
 
 	MainSearchPatternData mainSearch = {};
@@ -188,4 +193,5 @@ internal volatile u64 searchTime = 0;
 #include "xfind_ui.cpp"
 #include "xfind_worker_index.cpp"
 #include "xfind_worker_search.cpp"
+#include "xfind_watch_directory.cpp"
 

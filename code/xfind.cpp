@@ -12,6 +12,8 @@
 
 #include "xfind.h"
 
+
+
 internal void initState(State& state, Config iconfig)
 {
 	state.config = iconfig;
@@ -39,6 +41,7 @@ internal void initState(State& state, Config iconfig)
 	state.searchPaths = pushArray(state.arena, String, state.searchPathsSizeMax);
 	state.searchPathExists = false;
 	state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
+	updateWatchedDirectories(state);
 
 	state.extensions = pushArray(state.arena, String, state.extensionsMaxSize);
 	state.extensionsSize = parseExtensions(state.extensions, state.extensionsMaxSize, state.config.ext.str);
@@ -265,8 +268,13 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			ImGui::EndTooltip();
 		}
 
-		inputModified = modifProgram || modifExtensions || modifFolders || modifSearch;
+		inputModified = modifProgram || modifExtensions || modifFolders;
 		searchModified = modifSearch;
+		if (searchModified)
+		{
+			state.selectedLine = 0;
+		}
+
 		if (modifFolders || modifExtensions || state.needToGenerateIndex)
 		{
 			if (indexingInProgress)
@@ -277,6 +285,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 		if (modifFolders)
 		{
 			state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
+			updateWatchedDirectories(state);
 		}
 
 		if (modifExtensions)
@@ -305,7 +314,6 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	{
 		searchForPatternInFiles(&state.mainSearch, &state, &state.pool.queue, state.results, &state.resultsSize, state.resultsMaxSize, &state.index, state.searchBuffer);
 		state.needToSearchAgain = false;
-		state.selectedLine = 0;
 	}
 
 	// Draw results

@@ -134,10 +134,11 @@ struct ThreadPool
 	ThreadData* data = 0;
 };
 
-internal void initThreadPool(MemoryArena& arena, ThreadPool& pool)
+// @param nbThreads If 0, then creates as many threads as the number of logical threads.
+internal void initThreadPool(MemoryArena& arena, ThreadPool& pool, i32 nbThreads = 0)
 {
 	pool = {};
-	pool.nbThreads = getNumberOfLogicalThreads();
+	pool.nbThreads = nbThreads > 0 ? nbThreads : getNumberOfLogicalThreads();
 	pool.data = pushArray(arena, ThreadData, pool.nbThreads);
 	pool.queue.semaphore = CreateSemaphoreEx(0, 0, pool.nbThreads, 0, 0, SEMAPHORE_ALL_ACCESS);
 	for (i32 i = 0; i < pool.nbThreads; ++i)
