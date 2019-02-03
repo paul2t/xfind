@@ -22,7 +22,23 @@ internal GLFWwindow* createAndInitWindow(int width, int height, b32 maximized)
 	return window;
 }
 
-void reloadFontIfNeeded(String& fontFile, float& fontSize)
+void reloadFontIfNeeded(void* data, int dataSize, float& fontSize)
+{
+	if (fontSize != ImGui::GetFontSize())
+	{
+		ImGui_ImplOpenGL2_DestroyFontsTexture();
+		ImGuiIO& io = ImGui::GetIO();
+		io.Fonts->Clear();
+		if (data && dataSize > 0)
+		{
+			ImFontConfig fconfig;
+			fconfig.FontDataOwnedByAtlas = false;
+			io.Fonts->AddFontFromMemoryTTF(data, dataSize, fontSize, &fconfig);
+		}
+	}
+}
+
+void reloadFontIfNeeded(String fontFile, float& fontSize)
 {
 	if (fontSize != ImGui::GetFontSize())
 	{

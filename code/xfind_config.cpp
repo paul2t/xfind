@@ -1,5 +1,7 @@
 
 #define CONFIG_FILE_NAME "xfind.ini"
+#define DEFAULT_FONT_NAME "liberation-mono.ttf"
+
 Config readConfig(MemoryArena& arena)
 {
 	Config conf = {};
@@ -49,6 +51,8 @@ Config readConfig(MemoryArena& arena)
 				conf.fontSize = strtof(line.str + keyf.size, &end);
 				++end;
 				conf.fontFile = substr(line, (i32)(end - line.str));
+				if (match(conf.fontFile, make_lit_string(DEFAULT_FONT_NAME)))
+					conf.fontFile.size = 0;
 			}
 			if (match(line, make_lit_string("hide_program")))
 				conf.showProgram = false;
@@ -88,7 +92,10 @@ void writeConfig(Config conf)
 		fprintf(configFile, "[%d] # version\n", CONFIG_LATEST_VERSION);
 		String* oconfig = &conf.path;
 		fprintf(configFile, "window=%u %u %u\n", conf.width, conf.height, conf.maximized);
-		fprintf(configFile, "font=%f %.*s\n", conf.fontSize, strexp(conf.fontFile));
+		String fontFile = conf.fontFile;
+		if (fontFile.size <= 0)
+			fontFile = make_lit_string(DEFAULT_FONT_NAME);
+		fprintf(configFile, "font=%f %.*s\n", conf.fontSize, strexp(fontFile));
 		if (!conf.showProgram)
 			fprintf(configFile, "hide_program\n");
 		if (!conf.showFolderAndExt)

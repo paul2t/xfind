@@ -10,6 +10,7 @@
 // Wildcard and regex matching
 
 
+#include "resources/liberation-mono.cpp"
 #include "xfind.h"
 
 
@@ -58,7 +59,7 @@ internal void initState(State& state, Config iconfig)
 		state.config.fontSize = 20;
 	state.config.fontFile = iconfig.fontFile;
 	if (state.config.fontFile.size <= 0)
-		state.config.fontFile = make_lit_string("liberation-mono.ttf");
+		state.config.fontFile = {};
 
 }
 
@@ -331,7 +332,7 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	{
 		ImGui::Text("xfind alpha by paul2t");
 		ImGui::BulletText("Using imgui and glfw");
-		ImGui::BulletText("Font: liberation-mono.ttf");
+		ImGui::BulletText("Font: " DEFAULT_FONT_NAME);
 		if (ImGui::Button("OK"))
 			ImGui::CloseCurrentPopup();
 		ImGui::EndPopup();
@@ -396,7 +397,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
     while (state.running)
     {
-		reloadFontIfNeeded(state.config.fontFile, state.config.fontSize);
+		if (state.config.fontFile.size)
+			reloadFontIfNeeded(state.config.fontFile, state.config.fontSize);
+		else
+			reloadFontIfNeeded(liberation_mono_ttf, sizeof(liberation_mono_ttf), state.config.fontSize);
 
 		b32 isActiveWindow = (GetActiveWindow() == glfwGetWin32Window(window));
 		readInputs(window, state.running, state.shouldWaitForEvent, isActiveWindow);
