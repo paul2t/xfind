@@ -1,4 +1,50 @@
 
+#if 0
+internal HICON createIcon(void* iconData, i32 iconSize)
+{
+	//PBYTE data = (PBYTE)iconData;
+	HMODULE hMod = GetModuleHandleA(0);
+	HRSRC hResource = FindResourceA(hMod, "MAINICON", RT_GROUP_ICON);
+	HGLOBAL hMem = LoadResource(hMod, hResource);
+	PBYTE lpResource = (PBYTE)LockResource(hMem);
+	DWORD lpResourceSize = SizeofResource(hMod, hResource);
+	HICON hIcon = 0;// CreateIconFromResourceEx(lpResource, lpResourceSize, TRUE, 0x00030000, iconSize, iconSize, LR_DEFAULTCOLOR);
+	int offset = LookupIconIdFromDirectoryEx(lpResource, TRUE, iconSize, iconSize, LR_DEFAULTCOLOR);
+	if (offset != 0)
+		hIcon = CreateIconFromResourceEx(lpResource + offset, 0, TRUE, 0x30000, iconSize, iconSize, LR_DEFAULTCOLOR);
+	u32 err = GetLastError();
+	// Ahhh, this is the magic API.     
+	//int offset = LookupIconIdFromDirectoryEx(data, TRUE, iconSize, iconSize, LR_DEFAULTCOLOR);
+	//if (offset != 0)
+		//hIcon = CreateIconFromResourceEx(data + offset, 0, TRUE, 0x30000, iconSize, iconSize, LR_DEFAULTCOLOR);
+	return hIcon;
+}
+
+//static HICON hWindowIcon = NULL;
+//static HICON hWindowIconBig = NULL;
+internal void SetIcon(HWND hwnd, void* data, i32 imageCount)
+{
+	//if (hWindowIcon != NULL)
+		//DestroyIcon(hWindowIcon);
+	//if (hWindowIconBig != NULL)
+		//DestroyIcon(hWindowIconBig);
+	if (!data)
+	{
+		SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)NULL);
+		SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)NULL);
+	}
+	else
+	{
+		HICON hWindowIcon    = createIcon((u8*)data, 16);
+		HICON hWindowIconBig = createIcon((u8*)data, 32);
+		//HICON hWindowIcon = (HICON)LoadImage(NULL, stricon.str, IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
+		//HICON hWindowIconBig = (HICON)LoadImage(NULL, stricon.str, IMAGE_ICON, 32, 32, LR_LOADFROMFILE);
+		SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hWindowIcon);
+		SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hWindowIconBig);
+	}
+}
+#endif
+
 internal GLFWwindow* createAndInitWindow(int width, int height, b32 maximized)
 {
 	if (!glfwInit()) return 0;
