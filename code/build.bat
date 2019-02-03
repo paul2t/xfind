@@ -28,6 +28,13 @@ pushd build
 
 cl %CommonCompilerFlags% ..\code\%program%.cpp /link %CommonLinkerFlags%
 set builderror=%ERRORLEVEL%
+
+:: ResourceHacker is available here : http://www.angusj.com/resourcehacker/
+if "%builderror%" == "0" (
+	echo Setting icon
+	ResourceHacker.exe -open xfind.exe -save xfind.exe -action addskip -res ..\code\resources\xfind.ico -mask ICONGROUP,MAINICON,
+)
+
 popd
 
 IF "%UseCtime%" == "1" ctime -end tests.ctm %builderror%

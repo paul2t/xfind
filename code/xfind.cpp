@@ -11,6 +11,7 @@
 
 
 #include "resources/liberation-mono.cpp"
+#include "resources/icon.cpp"
 #include "xfind.h"
 
 
@@ -387,6 +388,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	GLFWwindow* window = createAndInitWindow(iconfig.width, iconfig.height, iconfig.maximized);
 	if (!window) return 1;
+	GLFWimage icon[2] = { { 16, 16, xfind_16_map }, { 32, 32, xfind_32_map}, };
+	glfwSetWindowIcon(window, sizeof(icon)/sizeof(GLFWimage), icon);
 	ImGuiContext& g = *ImGui::GetCurrentContext();
 	ImGuiIO& io = ImGui::GetIO();
 	io.IniFilename = NULL;
