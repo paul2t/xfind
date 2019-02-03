@@ -46,17 +46,6 @@ Show relative/full paths
 Search hidden files/folders  
 Search/Ignore the file names. If disabled, it will only show matching lines. If enabled, it will show both the matching file names and lines. Matching file names are always shown before the lines.  
 
-Known bugs
-===
-Not detecting new files on search. For performance reasons, the index is not updated when searching for a string.  
-By-pass: if you add new files, you can force to rebuild the index by modifying the folders (Tools -> Recompute the index).  
-I plan on using FindFirstChangeNotification to fix this.  
-
-File are reloaded on search if modified. But if the size exceeds 1.5x it's original size. Then only that part will be loaded.  
-This might be fixed at the same time as the previous bug.  
-This will cause a problem if an empty files goes over 4KB. It will only search the first 4KB.
-By-pass: Same as above : regenerate the index again (Tools -> Recompute the index).  
-
 Todo
 ===
 Look for modified files to update the index. (partial)  
