@@ -14,10 +14,10 @@
 #include "search_state_machine.cpp"
 
 
-const char argChar = '?';
-#define ARG_PATH "?p"
-#define ARG_LINE "?l"
-#define ARG_COL "?c"
+const char argChar = '%';
+#define ARG_PATH "%p"
+#define ARG_LINE "%l"
+#define ARG_COL "%c"
 #define ARG_HOME "%HOME%"
 
 struct ProgramString
@@ -31,7 +31,7 @@ static ProgramString programStrings[] =
 {
 	{ make_lit_string("Sublime Text 3"), make_lit_string("\"C:\\Program Files\\Sublime Text 3\\sublime_text.exe\" \""ARG_PATH":"ARG_LINE":"ARG_COL"\""), },
 	{ make_lit_string("Notepad++"), make_lit_string("\"C:\\Program Files (x86)\\Notepad++\\notepad++.exe\" \""ARG_PATH"\" -n"ARG_LINE" -c"ARG_COL), },
-	{ make_lit_string("VS Code"), make_lit_string("\"%HOME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" -g \""ARG_PATH":"ARG_LINE":"ARG_COL"\""), },
+	{ make_lit_string("VS Code"), make_lit_string("\""ARG_HOME"\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" -g \""ARG_PATH":"ARG_LINE":"ARG_COL"\""), },
 	{ make_lit_string("Emacs"), make_lit_string("emacsclient +"ARG_LINE":"ARG_COL" \""ARG_PATH"\""), true, },
 	{ make_lit_string("GVim"), make_lit_string("gvim '+normal "ARG_LINE"G"ARG_COL"|' \""ARG_PATH"\""), true, },
 };
@@ -173,6 +173,8 @@ struct State
 	MainSearchPatternData mainSearch = {};
 
 	bool useSSM = true;
+
+	b32 showAbout = false;
 };
 
 #if APP_INTERNAL

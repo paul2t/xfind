@@ -74,7 +74,7 @@ Config readConfig(MemoryArena& arena)
 			{
 				char c = conf.tool.str[i];
 				char c2 = conf.tool.str[i + 1];
-				if (c == '%' && (c2 == 'p' || c2 == 'l' || c2 == 'c'))
+				if (c == '?' && (c2 == 'p' || c2 == 'l' || c2 == 'c'))
 				{
 					conf.tool.str[i] = argChar;
 				}

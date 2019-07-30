@@ -16,7 +16,7 @@
 
 
 
-internal void initState(State& state, Config iconfig)
+static void initState(State& state, Config iconfig)
 {
 	state.config = iconfig;
 	state.config.path = pushNewString(state.arena, 1024);
@@ -64,17 +64,9 @@ internal void initState(State& state, Config iconfig)
 
 }
 
-void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
+static void drawMenuBar(ImGuiIO& io, State& state)
 {
-	ImGuiIO& io = g.IO;
-
-	int framewidth, frameheight;
-	glfwGetFramebufferSize(window, &framewidth, &frameheight);
-	ImGui::SetNextWindowSize(ImVec2((float)framewidth, (float)frameheight));
-	ImGui::SetNextWindowPos(ImVec2());
-	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
-
-	bool showAbout = false;
+	state.showAbout = false;
 
 	// Draw menu bar
 	if (ImGui::BeginMenuBar())
@@ -140,12 +132,12 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			}
 			if (ImGui::MenuItem("About"))
 			{
-				showAbout = true;
+				state.showAbout = true;
 			}
 			ImGui::EndMenu();
 		}
 
-#if APP_INTERNAL
+	#if APP_INTERNAL
 		ImGui::PushStyleColor(ImGuiCol_Text, (ImU32)ImColor(1.f, 0.f, 0.f));
 		if (ImGui::BeginMenu("Debug"))
 		{
@@ -154,11 +146,14 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			ImGui::EndMenu();
 		}
 		ImGui::PopStyleColor();
-#endif
+	#endif
+
 		ImGui::EndMenuBar();
 	}
+}
 
-
+static b32 handleInputs(ImGuiIO& io, State& state)
+{
 	b32 inputModified = false;
 	b32 searchModified = false;
 
@@ -185,7 +180,6 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 			execOpenFile(state.config.tool, file, match.lineIndex, match.offset_in_line + 1);
 		}
 	}
-
 
 	// Draw inputs
 	{
@@ -307,9 +301,9 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 		}
 	}
 
-#if APP_INTERNAL
+	#if APP_INTERNAL
 	ImGui::Text("Debug : Index time %llums (tt:%llu) | Search time %llums", indexTime, treeTraversalTime, searchTime);
-#endif
+	#endif
 
 	// Lauch search if input needed
 	if (!state.needToGenerateIndex && !indexingInProgress && (state.needToSearchAgain || searchModified) && state.searchPathExists)
@@ -318,15 +312,18 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 		state.needToSearchAgain = false;
 	}
 
-	// Draw results
-	{
-		ImGui::BeginChild("Results");
-		showResults(state, state.results, state.resultsSize, state.resultsMaxSize, &state.index, state.selectedLine);
-		ImGui::EndChild();
-	}
+	return inputModified;
+}
 
-	ImGui::End();
+static void drawResults(State& state)
+{
+	ImGui::BeginChild("Results");
+	showResults(state, state.results, state.resultsSize, state.resultsMaxSize, &state.index, state.selectedLine);
+	ImGui::EndChild();
+}
 
+static void showAbout(b32& showAbout)
+{
 	if (showAbout)
 		ImGui::OpenPopup("About");
 	if (ImGui::BeginPopupModal("About", NULL, ImGuiWindowFlags_AlwaysAutoResize))
@@ -337,8 +334,29 @@ void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 		if (ImGui::Button("OK"))
 			ImGui::CloseCurrentPopup();
 		ImGui::EndPopup();
+		showAbout = false;
 	}
+}
 
+static void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
+{
+	ImGuiIO& io = g.IO;
+
+	int framewidth, frameheight;
+	glfwGetFramebufferSize(window, &framewidth, &frameheight);
+	ImGui::SetNextWindowSize(ImVec2((float)framewidth, (float)frameheight));
+	ImGui::SetNextWindowPos(ImVec2());
+	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
+
+	drawMenuBar(io, state);
+
+	b32 inputModified = handleInputs(io, state);
+
+	drawResults(state);
+
+	showAbout(state.showAbout);
+
+	ImGui::End();
 
 
 	// Save params if something has been changed or we are closing the application.

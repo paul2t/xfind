@@ -286,7 +286,7 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 		{
 			ImGui::TextColored(filenameColor, "%.*s", strexp(filename));
 			ImGui::SameLine(0, 0);
-			ImGui::TextColored(filenameColor, "(%d): ", match.lineIndex);
+			ImGui::TextColored(filenameColor, "(%d:%d): ", match.lineIndex, match.offset_in_line);
 
 			showHighlightedText(match.line, match.offset_in_line, match.matching_length, true);
 		}

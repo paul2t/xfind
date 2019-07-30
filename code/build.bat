@@ -30,7 +30,7 @@ cl %CommonCompilerFlags% ..\code\%program%.cpp /link %CommonLinkerFlags%
 set builderror=%ERRORLEVEL%
 
 :: ResourceHacker is available here : http://www.angusj.com/resourcehacker/
-if "%builderror%" == "0" (
+if %builderror% == 0 if %RELEASE% == 1 (
 	echo Setting icon
 	ResourceHacker.exe -open xfind.exe -save xfind.exe -action addskip -res ..\code\resources\xfind.ico -mask ICONGROUP,MAINICON,
 )
