@@ -91,6 +91,7 @@ struct FileIndexEntry
 	FileIndexEntry* nextInPathHash = 0;
 	b32 seenInIndex = false;
 	volatile b32 modifiedSinceLastSearch = false;
+	volatile u32 mutex = 0;
 };
 
 #define PATH_HASH_SIZE 4096

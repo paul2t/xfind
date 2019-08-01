@@ -43,6 +43,8 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		FILETIME lastWriteTime = GetLastWriteTime(filei->path.str);
 		if (CompareFileTime(&filei->lastWriteTime, &lastWriteTime))
 		{
+			ScopeMutex(&filei->mutex);
+
 			//printf("file %s has been modified since last index.\n", filei->path.str);
 			FILE* file = fopen(filei->path.str, "rb");
 			if (file)

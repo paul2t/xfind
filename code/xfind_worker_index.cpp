@@ -234,6 +234,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 		++filesSize;
 		if (!ei->seenInIndex)
 		{
+			ScopeMutex(&ei->mutex);
 			--filesSize;
 
 			FileIndexEntry* nexte = ei->next;

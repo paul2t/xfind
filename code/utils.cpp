@@ -261,6 +261,73 @@ void execProgram(char* program)
 }
 
 
+struct MutexRW
+{
+    u32 read = 0;
+    u32 write = 0;
+};
+
+inline void LockMutex(volatile u32* mutex)
+{
+    u32 locked;
+    do {
+        locked = InterlockedCompareExchange((LONG volatile*)mutex, 1, 0);
+    } while (locked != 1);
+    _WriteBarrier();
+}
+
+inline void UnlockMutex(volatile u32* mutex)
+{
+    _WriteBarrier();
+    *mutex = 0;
+}
+
+inline void LockMutexRead(volatile MutexRW* mutex)
+{
+    LockMutex(&mutex->write);
+    mutex->read++;
+    UnlockMutex(&mutex->write);
+}
+
+inline void UnlockMutexRead(volatile MutexRW* mutex)
+{
+    _WriteBarrier();
+    mutex->read--;
+    assert(mutex->read >= 0);
+}
+
+inline void LockMutexWrite(volatile MutexRW* mutex)
+{
+    LockMutex(&mutex->write);
+    while (mutex->read) {};
+}
+
+inline void UnlockMutexWrite(volatile MutexRW* mutex)
+{
+    UnlockMutex(&mutex->write);
+}
+
+
+struct ScopeMutex
+{
+    volatile u32* mutex;
+    ScopeMutex(volatile u32* mutex) : mutex(mutex) { LockMutex(mutex); }
+    ~ScopeMutex() { UnlockMutex(mutex); }
+};
+
+struct ScopeMutexRead
+{
+    volatile MutexRW* mutex;
+    ScopeMutexRead(volatile MutexRW* mutex) : mutex(mutex) { LockMutexRead(mutex); }
+    ~ScopeMutexRead() { UnlockMutexRead(mutex); }
+};
+
+struct ScopeMutexWrite
+{
+    volatile MutexRW* mutex;
+    ScopeMutexWrite(volatile MutexRW* mutex) : mutex(mutex) { LockMutexWrite(mutex); }
+    ~ScopeMutexWrite() { UnlockMutexWrite(mutex); }
+};
 
 
 //
