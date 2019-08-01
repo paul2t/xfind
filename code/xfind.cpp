@@ -15,7 +15,6 @@
 #include "xfind.h"
 
 
-
 static void initState(State& state, Config iconfig)
 {
 	state.config = iconfig;
@@ -82,6 +81,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 
 		if (ImGui::BeginMenu("Settings"))
 		{
+#if !DX12
 			if (ImGui::DragFloat("Font", &state.config.fontSize, 0.1f, 4, 100))
 			{
 				if (state.config.fontSize < 4)
@@ -89,6 +89,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 				if (state.config.fontSize > 100)
 					state.config.fontSize = 100;
 			}
+#endif
 			ImGui::Checkbox("Edit program's command", &state.config.showProgram);
 			ImGui::Checkbox("Edit folders and extensions", &state.config.showFolderAndExt);
 			ImGui::Checkbox("Show relative paths", &state.config.showRelativePaths);
@@ -338,12 +339,12 @@ static void showAbout(b32& showAbout)
 	}
 }
 
-static void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
+static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 {
 	ImGuiIO& io = g.IO;
 
 	int framewidth, frameheight;
-	glfwGetFramebufferSize(window, &framewidth, &frameheight);
+	GetFramebufferSize(window, &framewidth, &frameheight);
 	ImGui::SetNextWindowSize(ImVec2((float)framewidth, (float)frameheight));
 	ImGui::SetNextWindowPos(ImVec2());
 	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
@@ -364,12 +365,13 @@ static void handleFrame(GLFWwindow* window, ImGuiContext& g, State& state)
 	{
 		// Get window position and dimensions.
 		WINDOWPLACEMENT wplacement = {};
-		GetWindowPlacement(glfwGetWin32Window(window), &wplacement);
+		GetWindowPlacement(GetWindowRawPointer(window), &wplacement);
 		state.config.maximized = (wplacement.showCmd == SW_SHOWMAXIMIZED);
 		// If the windows is maximized, then we keep the dimensions of the restored window.
 		if (!state.config.maximized)
 		{
-			glfwGetWindowSize(window, &state.config.width, &state.config.height);
+			state.config.width = (int)io.DisplaySize.x;
+			state.config.height = (int)io.DisplaySize.y;
 		}
 
 		writeConfig(state.config);
@@ -404,10 +406,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	state.index.onePastLastFile = &state.index.firstFile; // This is because of an internal error in vs compiler.
 	Config iconfig = readConfig(state.arena);
 
-	GLFWwindow* window = createAndInitWindow(iconfig.width, iconfig.height, iconfig.maximized);
+	WINDOW window = createAndInitWindow("xfind", iconfig.width, iconfig.height, iconfig.maximized);
 	if (!window) return 1;
+#if OPENGL
 	GLFWimage icon[2] = { { 16, 16, xfind_16_map }, { 32, 32, xfind_32_map}, };
 	glfwSetWindowIcon(window, sizeof(icon)/sizeof(GLFWimage), icon);
+#endif
 	ImGuiContext& g = *ImGui::GetCurrentContext();
 	ImGuiIO& io = ImGui::GetIO();
 	io.IniFilename = NULL;
@@ -416,6 +420,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	initState(state, iconfig);
 
+	// Main loop
+	MSG msg;
+	ZeroMemory(&msg, sizeof(msg));
     while (state.running)
     {
 		if (state.config.fontFile.size)
@@ -423,8 +430,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		else
 			reloadFontIfNeeded(liberation_mono_ttf, sizeof(liberation_mono_ttf), state.config.fontSize);
 
-		b32 isActiveWindow = (GetActiveWindow() == glfwGetWin32Window(window));
-		readInputs(window, state.running, state.shouldWaitForEvent, isActiveWindow);
+
+		b32 isActiveWindow = IsActiveWindow(window);
+		readInputs(window, msg, state.running, state.shouldWaitForEvent, isActiveWindow);
 		if (!indexingInProgress && !searchInProgress)
 			state.shouldWaitForEvent = true;
         
