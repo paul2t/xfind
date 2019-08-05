@@ -8,7 +8,10 @@
 // hot key to give focus to xfind : RegisterHotKey ? (https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-registerhotkey)
 // Show a few lines above and below the selected result.
 // Wildcard and regex matching
-
+// ImGuiInputTextFlags_CallbackCompletion = 1 << 6,   // Callback on pressing TAB (for completion handling)
+// ImGuiInputTextFlags_CallbackHistory = 1 << 7,   // Callback on pressing Up/Down arrows (for history handling)
+// ImGuiInputTextFlags_CallbackAlways = 1 << 8,   // Callback on each iteration. User code may query cursor position, modify text buffer.
+// ImGuiInputTextFlags_CallbackCharFilter = 1 << 9,   // Callback on character inputs to replace or discard them. Modify 'EventChar' to replace or discard, or return 1 in callback to discard.
 
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
@@ -381,12 +384,46 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 
 
 
+static volatile HWND g_window_handle;
+static volatile bool g_set_active_window;
+internal DWORD hot_key_listener(void* _data)
+{
+	if (RegisterHotKey(NULL, 1, MOD_ALT | MOD_NOREPEAT, 'X'))
+	{
+		printf("Hot key registered\n");
+		MSG msg = {};
+		while (GetMessage(&msg, NULL, 0, 0))
+		{
+			if (msg.message == WM_HOTKEY)
+			{
+				printf("WM_HOTKEY received\n");
+				g_set_active_window = true;
+				WPARAM p = 0;
+				LPARAM l = 0;
+				SendMessageA(g_window_handle, WM_ERASEBKGND, p, l);
+			}
+		}
+	}
+
+	return 0;
+}
+
 #if APP_INTERNAL && 1
 int main()
 #else
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 #endif
 {
+#if APP_INTERNAL
+	HINSTANCE hInstance = GetModuleHandle(NULL);
+#endif
+	
+	{
+		HANDLE threadHandle = CreateThread(0, 0, hot_key_listener, 0, 0, 0);
+		CloseHandle(threadHandle);
+	}
+
+
 #if APP_INTERNAL && 0
 	char* paths[] =
 	{
@@ -408,6 +445,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	WINDOW window = createAndInitWindow("xfind", iconfig.width, iconfig.height, iconfig.maximized);
 	if (!window) return 1;
+	g_window_handle = GetWindowRawPointer(window);
+
 #if OPENGL
 	GLFWimage icon[2] = { { 16, 16, xfind_16_map }, { 32, 32, xfind_32_map}, };
 	glfwSetWindowIcon(window, sizeof(icon)/sizeof(GLFWimage), icon);
@@ -421,8 +460,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	initState(state, iconfig);
 
 	// Main loop
-	MSG msg;
-	ZeroMemory(&msg, sizeof(msg));
     while (state.running)
     {
 		if (state.config.fontFile.size)
@@ -432,9 +469,18 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 
 		b32 isActiveWindow = IsActiveWindow(window);
-		readInputs(window, msg, state.running, state.shouldWaitForEvent, isActiveWindow);
+		readInputs(window, state.running, state.shouldWaitForEvent, isActiveWindow);
 		if (!indexingInProgress && !searchInProgress)
 			state.shouldWaitForEvent = true;
+		
+		if (g_set_active_window)
+		{
+			glfwFocusWindow(window);
+			g_set_active_window = false;
+			state.shouldWaitForEvent = false;
+			state.setFocusToSearchInput = true;
+			state.selectSearchInputText = true;
+		}
         
 		imguiBeginFrame();
 

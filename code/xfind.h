@@ -147,6 +147,7 @@ struct State
 
 	b32 setFocusToFolderInput = false;
 	b32 setFocusToSearchInput = false;
+	b32 selectSearchInputText = false;
 	b32 shouldWaitForEvent = false;
 	i32 selectedLine = 0;
 

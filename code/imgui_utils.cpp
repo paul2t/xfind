@@ -500,20 +500,24 @@ static void reloadFontIfNeeded(String fontFile, float& fontSize)
 	}
 }
 
-static void readInputs(WINDOW window, MSG& msg, b32& running, b32& shouldWaitForEvent, b32 isActiveWindow = true)
+static void readInputs(WINDOW window, b32& running, b32& shouldWaitForEvent, b32 isActiveWindow = true)
 {
 #if OPENGL
+
 	if (shouldWaitForEvent && !isActiveWindow)
 		glfwWaitEvents();
 	else
 		glfwPollEvents();
 	running = glfwWindowShouldClose(window) == 0;
+
 #elif DX12
 	// Poll and handle messages (inputs, window resize, etc.)
 	// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
 	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
 	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
 	// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+	MSG msg;
+	ZeroMemory(&msg, sizeof(msg));
 	bool hasMsg = false;
 	for (;;)
 	{
