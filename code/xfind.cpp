@@ -1,17 +1,21 @@
 // TODO:
-// Look for modified files to update the index. (partial)
-// Mouse click on the result list.
-// Search history
-// Paths history
-// Extensions history
-// Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)
-// hot key to give focus to xfind : RegisterHotKey ? (https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-registerhotkey)
 // Show a few lines above and below the selected result.
+// Look for modified files to update the index. (partial)
+	// Should only update the files that have been modified.
+// Search history : 
+	// ImGuiInputTextFlags_CallbackHistory = 1 << 7,   // Callback on pressing Up/Down arrows (for history handling)
+// Paths history
+// Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)
 // Wildcard and regex matching
-// ImGuiInputTextFlags_CallbackCompletion = 1 << 6,   // Callback on pressing TAB (for completion handling)
-// ImGuiInputTextFlags_CallbackHistory = 1 << 7,   // Callback on pressing Up/Down arrows (for history handling)
-// ImGuiInputTextFlags_CallbackAlways = 1 << 8,   // Callback on each iteration. User code may query cursor position, modify text buffer.
-// ImGuiInputTextFlags_CallbackCharFilter = 1 << 9,   // Callback on character inputs to replace or discard them. Modify 'EventChar' to replace or discard, or return 1 in callback to discard.
+// select search input text on focus (using callbacks)
+	// ImGuiInputTextFlags_CallbackAlways = 1 << 8,   // Callback on each iteration. User code may query cursor position, modify text buffer.
+// sort output
+// auto complete paths
+	// ImGuiInputTextFlags_CallbackCompletion = 1 << 6,   // Callback on pressing TAB (for completion handling)
+// open folder : GetOpenFileNameA(OPENFILENAMEA*)
+// let user create different search config presets (folders + extensions) : to easily switch between several presets
+
+
 
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
