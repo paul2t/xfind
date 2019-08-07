@@ -479,6 +479,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		
 		if (g_set_active_window)
 		{
+			int iconified = glfwGetWindowAttrib(window, GLFW_ICONIFIED);
+			if (iconified)
+				glfwRestoreWindow(window);
 			glfwFocusWindow(window);
 			g_set_active_window = false;
 			state.shouldWaitForEvent = false;
