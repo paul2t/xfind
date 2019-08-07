@@ -88,9 +88,9 @@ internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 				newSize = MAX_FILE_PARSED_SIZE;
 			rewind(file);
 
-			if (fileIndex->content.memory_size < newSize)
+			if (fileIndex->content.memory_size < newSize + 1)
 			{
-				fileIndex->content.memory_size = (i32)(newSize * 1.5f);
+				fileIndex->content.memory_size = (i32)(newSize * (fileIndex->content.str ? 1.5f : 1.0f)) + 1;
 				if (fileIndex->content.memory_size > MAX_FILE_PARSED_SIZE + 1)
 					fileIndex->content.memory_size = MAX_FILE_PARSED_SIZE + 1;
 				fileIndex->content.str = (char*)realloc(fileIndex->content.str, fileIndex->content.memory_size);
