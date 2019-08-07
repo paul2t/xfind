@@ -82,10 +82,14 @@ internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 		FILE* file = fopen(fileIndex->path.str, "rb");
 		if (file)
 		{
+			fileIndex->truncated = false;
 			_fseeki64(file, 0, SEEK_END);
 			size_t newSize = _ftelli64(file);
 			if (newSize > MAX_FILE_PARSED_SIZE)
+			{
+				fileIndex->truncated = true;
 				newSize = MAX_FILE_PARSED_SIZE;
+			}
 			rewind(file);
 
 			if (fileIndex->content.memory_size < newSize + 1)

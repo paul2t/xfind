@@ -89,6 +89,7 @@ struct FileIndexEntry
 	FILETIME lastWriteTime = {};
 	FileIndexEntry* next = 0;
 	FileIndexEntry* nextInPathHash = 0;
+	b32 truncated = false;
 	b32 seenInIndex = false;
 	volatile b32 modifiedSinceLastSearch = false;
 	volatile u32 mutex = 0;
