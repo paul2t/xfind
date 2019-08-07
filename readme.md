@@ -16,7 +16,7 @@ The search is case insensitive.
 You can select a line with up/down arrows. Also page up/down.  
 Then press enter or double click on a line to open the corresponding file using the specified command line.  
 Or press CTRL+C to copy the path of the file.  
-In the command line, `?p` will be replaced by the path of the file. `?l` will be replaced by the line number. `?c` will be replaced by the column number.  
+In the command line, `%p` will be replaced by the path of the file. `%l` will be replaced by the line number. `%c` will be replaced by the column number.  
 %HOME% will be replaced by your home directory.  
 You can specify as many arguments as you whish. There are some examples in the help command. Only Sublime Text 3 has been tested.  
 When you close the program, the config you specified is saved in xfind.ini. It is restored when the program is launched.  
@@ -32,7 +32,6 @@ Therefore even while it is working (searching / indexing), the UI will be respon
 There is absolutely no optimization done yet.  
 
 Only works on Windows (for now).  
-Make sure you have the font next to the executable.  
 
 Options
 ===
