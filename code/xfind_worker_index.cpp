@@ -44,6 +44,8 @@ internal FileIndexEntry* getOrCreateFileFromPath(FileIndex* fileIndex, String pa
 			fileIndex->firstRemovedFile = entry->next;
 		else
 			entry = pushStruct(fileIndex->arena, FileIndexEntry);
+
+		entry->modifiedSinceLastSearch = true;
 		entry->path = path;
 		entry->path.str = strdup(path.str);
 
