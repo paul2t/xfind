@@ -26,7 +26,7 @@ if %DEBUG% EQU 1 ( set CommonCompilerFlags=%CommonCompilerFlags% -Od
 if %INTERNAL% EQU 1 set CommonCompilerFlags=%CommonCompilerFlags% -DAPP_INTERNAL=1
 set GraphicsLinkFlags=glfw3.lib opengl32.lib
 if "%DX12%" == "1" set GraphicsLinkFlags=d3d12.lib d3dcompiler.lib
-set CommonLinkerFlags=-incremental:no -opt:ref %GraphicsLinkFlags% dxgi.lib gdi32.lib shell32.lib comdlg32.lib /IGNORE:4217 /IGNORE:4049 /LIBPATH:..\code\GLFW\
+set CommonLinkerFlags=-incremental:no -opt:ref %GraphicsLinkFlags% /IGNORE:4217 /IGNORE:4049 /LIBPATH:..\code\GLFW\
 
 IF NOT EXIST build mkdir build
 pushd build

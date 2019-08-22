@@ -1,5 +1,10 @@
 #pragma once
 
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "comdlg32.lib")
 
 #include <stdio.h>
 #include <windows.h>

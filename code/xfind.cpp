@@ -15,6 +15,7 @@
 // open folder : GetOpenFileNameA(OPENFILENAMEA*)
 // let user create different search config presets (folders + extensions) : to easily switch between several presets
 
+#if 0
 
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
@@ -421,23 +422,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #if APP_INTERNAL
 	HINSTANCE hInstance = GetModuleHandle(NULL);
 #endif
-	
+
 	{
 		HANDLE threadHandle = CreateThread(0, 0, hot_key_listener, 0, 0, 0);
 		CloseHandle(threadHandle);
 	}
 
 
-#if APP_INTERNAL && 1
-	char* paths[] =
-	{
-		"C:\\work\\xfind\\data\\folder\\bin",
-		"C:\\work\\xfind\\data\\folder\\src",
-	};
-	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
-	WatchDirectory("C:\\work\\xfind\\code");
-	return 1;
-#endif
+
 #if APP_INTERNAL && 0
 	testSearch();
 	return 1;
@@ -501,3 +493,67 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	imguiCleanup(window);
     return 0;
 }
+
+#endif
+
+
+#include "watch_directory.h"
+#if APP_INTERNAL && 1
+int main()
+#else
+int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+#endif
+{
+
+#if APP_INTERNAL && 1
+	char* paths[] =
+	{
+		"C:\\work\\xfind\\code\\",
+		"C:\\work\\xfind\\build\\",
+		//"C:\\work\\xfind\\data\\folder\\bin",
+		//"C:\\work\\xfind\\data\\folder\\src",
+	};
+	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
+	WatchDir wd = watchdir_start(paths, sizeof(paths) / sizeof(*paths));
+	for (;;)
+	{
+		WatchDirEvent* evt = watchdir_get_event(wd);
+		assert(evt);
+		if (!evt) continue;
+
+		assert(evt->name && evt->name_size);
+		assert(!(evt->created && evt->deleted));
+		assert(!(evt->created && evt->modified));
+		assert(!(evt->created && (evt->old_name_size > 0)));
+		assert(!(evt->deleted && evt->modified));
+		assert(!(evt->deleted && (evt->old_name_size > 0)));
+
+		if (evt->created)
+			printf("+ ");
+		else if (evt->deleted)
+			printf("- ");
+		else if (evt->modified)
+			printf("~ ");
+		else if (evt->existed && evt->old_name_size)
+			printf("  ");
+		else
+		{
+			assert(0);
+			continue;
+		}
+
+		if (evt->old_name_size)
+			printf(" %s -> %s", evt->old_name, evt->name);
+		else
+			printf(" %s", evt->name);
+
+		printf("\n");
+	}
+
+	watchdir_stop(wd);
+
+	return 1;
+#endif
+}
+
+
