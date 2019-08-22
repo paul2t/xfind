@@ -6,7 +6,7 @@ set DX12=0 :: not working
 set EXECUTE=0
 set DEBUG=1
 set INTERNAL=1
-set RELEASE=1
+set RELEASE=0
 
 pushd ..
 IF NOT EXIST build mkdir build

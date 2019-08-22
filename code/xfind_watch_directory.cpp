@@ -1,6 +1,6 @@
 
 
-#if APP_INTERNAL && 0
+#if 1
 #define MAX_DIRS 25
 #define MAX_FILES 255
 #define MAX_BUFFER 4096
@@ -16,13 +16,45 @@ DIRECTORY_INFO DirInfo[MAX_DIRS];   // Buffer for all of the directories
 TCHAR FileList[MAX_FILES*MAX_PATH]; // Buffer for all of the files
 DWORD numDirs;
 
-//Method to start watching a directory. Call it on a separate thread so it wont block the main thread.  
+
+enum FileEventType
+{
+	FileEvent_none,
+	FileEvent_deleted,
+	FileEvent_renamed,
+	FileEvent_renamed_old,
+
+	FileEvent_count,
+};
+
+struct FileEvent
+{
+	String name;
+	String old_name;
+	bool created;
+	bool deleted;
+	bool modified;
+
+	bool existed;
+};
+
+void free(FileEvent& evt)
+{
+	free(evt.name.str);
+	free(evt.old_name.str);
+	evt = {};
+}
+
+FileEvent file_event_buffer[4096];
+volatile i32 file_event_size = 0;
+
+
+// Method to start watching a directory. Call it on a separate thread so it wont block the main thread.  
 // From : https://developersarea.wordpress.com/2014/09/26/win32-file-watcher-api-to-monitor-directory-changes/
 void WatchDirectory(char* path)
 {
 	char buf[2048];
 	DWORD nRet;
-	BOOL result = TRUE;
 	char filename[MAX_PATH];
 	DirInfo[0].hDir = CreateFileA(path, GENERIC_READ | FILE_LIST_DIRECTORY,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -41,26 +73,65 @@ void WatchDirectory(char* path)
 	int offset;
 	PollingOverlap.OffsetHigh = 0;
 	PollingOverlap.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	while (result)
+	int changes_count = 0;
+	for(;;)
 	{
-		result = ReadDirectoryChangesW(
+		BOOL result = ReadDirectoryChangesW(
 			DirInfo[0].hDir,// handle to the directory to be watched
 			&buf,// pointer to the buffer to receive the read results
 			sizeof(buf),// length of lpBuffer
 			TRUE,// flag for monitoring directory or directory tree
 			0
-			| FILE_NOTIFY_CHANGE_FILE_NAME
-			| FILE_NOTIFY_CHANGE_DIR_NAME
-			//| FILE_NOTIFY_CHANGE_SIZE
-			| FILE_NOTIFY_CHANGE_LAST_WRITE
-			//| FILE_NOTIFY_CHANGE_LAST_ACCESS
-			//| FILE_NOTIFY_CHANGE_CREATION
+			| FILE_NOTIFY_CHANGE_FILE_NAME // file name changed
+			| FILE_NOTIFY_CHANGE_DIR_NAME // directory name changed
+			//| FILE_NOTIFY_CHANGE_SIZE // file size changed
+			| FILE_NOTIFY_CHANGE_LAST_WRITE // last write time changed
+			//| FILE_NOTIFY_CHANGE_LAST_ACCESS // last access time changed
+			//| FILE_NOTIFY_CHANGE_CREATION // Creation time changed
 			,
 			&nRet,// number of bytes returned
 			&PollingOverlap,// pointer to structure needed for overlapped I/O
 			NULL);
 
-		WaitForSingleObject(PollingOverlap.hEvent, INFINITE);
+		if (!result) break;
+
+		for (;;)
+		{
+			// Timeout after 1ms to see if there is something available right away or not.
+			DWORD waitStatus = WaitForSingleObject(PollingOverlap.hEvent, 10);
+			if (waitStatus != WAIT_TIMEOUT)
+				break;
+
+			// If no event is available right now, we send the modifications and we wait infinitely.
+
+			// TODO: Here we need to push all the modifications to the search
+			//printf("END OF MODIFICATIONS : %d\n", changes_count);
+			for (i32 i = 0; i < changes_count; ++i)
+			{
+				FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+				if (evt->created)
+					printf("+ ");
+				else if (evt->deleted)
+					printf("- ");
+				else if (evt->modified)
+					printf("~ ");
+				else if (evt->existed && evt->old_name.size)
+					printf("  ");
+				else
+					continue;
+
+				if (evt->old_name.size)
+					printf(" %s -> %s", evt->old_name.str, evt->name.str);
+				else
+					printf(" %s",evt->name.str);
+
+				printf("\n");
+			}
+			printf("\n");
+			changes_count = 0;
+
+			WaitForSingleObject(PollingOverlap.hEvent, INFINITE);
+		}
 		offset = 0;
 		//int rename = 0;
 		//char oldName[260];
@@ -68,28 +139,231 @@ void WatchDirectory(char* path)
 		do
 		{
 			pNotify = (FILE_NOTIFY_INFORMATION*)((char*)buf + offset);
-			strcpy(filename, "");
+			filename[0] = 0;
 			int filenamelen = WideCharToMultiByte(CP_ACP, 0, pNotify->FileName, pNotify->FileNameLength / 2, filename, sizeof(filename), NULL, NULL);
 			filename[pNotify->FileNameLength / 2] = '\0';
 			switch (pNotify->Action)
 			{
-			case FILE_ACTION_ADDED:
-				printf("\nThe file is added to the directory: [%s] \n", filename);
-				break;
-			case FILE_ACTION_REMOVED:
-				printf("\nThe file is removed from the directory: [%s] \n", filename);
-				break;
-			case FILE_ACTION_MODIFIED:
-				printf("\nThe file is modified. This can be a change in the time stamp or attributes: [%s]\n", filename);
-				break;
-			case FILE_ACTION_RENAMED_OLD_NAME:
-				printf("\nThe file was renamed and this is the old name: [%s]\n", filename);
-				break;
-			case FILE_ACTION_RENAMED_NEW_NAME:
-				printf("\nThe file was renamed and this is the new name: [%s]\n", filename);
-				break;
+			case FILE_ACTION_ADDED: {
+				//printf("+ %s\n", filename);
+				FileEvent* old_event = 0;
+				for (i32 i = changes_count-1; i >= 0; --i)
+				{
+					FileEvent* evt = file_event_buffer + ( (file_event_size + i) % sizeof(file_event_buffer) );
+					if (match(evt->name, filename))
+					{
+						old_event = evt;
+						break;
+					}
+				}
+				if (old_event)
+				{
+					old_event->created = false;
+					old_event->deleted = false;
+					old_event->modified = true;
+					if (!old_event->existed)
+						old_event->created = true;
+				}
+				else
+				{
+					i32 evt_index = (file_event_size + changes_count) % sizeof(file_event_buffer);
+					FileEvent* evt = file_event_buffer + evt_index;
+					*evt = {};
+					evt->existed = false;
+					evt->created = true;
+					evt->name.str = strdup(filename);
+					evt->name.size = filenamelen;
+					++changes_count;
+				}
+			} break;
+
+
+			case FILE_ACTION_REMOVED: {
+				//printf("- %s\n", filename);
+				FileEvent* old_event = 0;
+				for (i32 i = changes_count-1; i >= 0; --i)
+				{
+					FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+					if (match(evt->name, filename))
+					{
+						old_event = evt;
+						break;
+					}
+				}
+				if (old_event)
+				{
+					FileEvent* mevt = 0;
+					if (!old_event->created && old_event->old_name.size)
+					{
+						for (i32 i = 0; i < changes_count; ++i)
+						{
+							FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+							if (match(evt->name, old_event->old_name))
+							{
+								mevt = evt;
+								break;
+							}
+						}
+					}
+					if (mevt)
+					{
+						if (!mevt->created)
+						{
+							free(old_event->old_name.str);
+							old_event->old_name = {};
+							old_event->name = mevt->name;
+							mevt->name = mevt->old_name;
+							mevt->old_name = {};
+							mevt->created = false;
+							mevt->modified = false;
+							mevt->deleted = true;
+							mevt->existed = true;
+							old_event->created = false;
+							old_event->modified = true;
+							old_event->deleted = false;
+						}
+						else
+						{
+							free(mevt->old_name.str);
+							mevt->old_name = {};
+							mevt->created = false;
+							mevt->modified = true;
+							mevt->existed = true;
+							free(old_event->old_name.str);
+							free(old_event->name.str);
+							*old_event = {};
+						}
+					}
+					else
+					{
+
+						old_event->created = false;
+						old_event->deleted = false;
+						old_event->modified = false;
+						if (old_event->existed)
+						{
+							old_event->modified = true;
+							old_event->deleted = true;
+						}
+						// NOTE: cannot do that, in the case where the file is renamed and another file with the same name is created.
+						//if (old_event->old_name.size)
+						//{
+							//free(old_event->name.str);
+							//old_event->name = old_event->old_name;
+							//old_event->old_name = {};
+						//}
+					}
+				}
+				else
+				{
+					i32 evt_index = (file_event_size + changes_count) % sizeof(file_event_buffer);
+					FileEvent* evt = file_event_buffer + evt_index;
+					*evt = {};
+					evt->existed = true;
+					evt->deleted = true;
+					evt->name.str = strdup(filename);
+					evt->name.size = filenamelen;
+					++changes_count;
+				}
+			} break;
+
+			case FILE_ACTION_MODIFIED: {
+				char pathbuff[MAX_PATH];
+				sprintf(pathbuff, "%s\\%s", path, filename);
+				DWORD dwAttrib = GetFileAttributes(pathbuff);
+				if (dwAttrib != INVALID_FILE_ATTRIBUTES && dwAttrib & FILE_ATTRIBUTE_DIRECTORY)
+					break;
+				//printf("~ %s\n", filename);
+				FileEvent* old_event = 0;
+				for (i32 i = changes_count-1; i >= 0; --i)
+				{
+					FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+					if (match(evt->name, filename))
+					{
+						old_event = evt;
+						break;
+					}
+				}
+				if (old_event)
+				{
+					old_event->modified = true;
+				}
+				else
+				{
+					i32 evt_index = (file_event_size + changes_count) % sizeof(file_event_buffer);
+					FileEvent* evt = file_event_buffer + evt_index;
+					*evt = {};
+					evt->existed = true;
+					evt->modified = true;
+					evt->name.str = strdup(filename);
+					evt->name.size = filenamelen;
+					++changes_count;
+				}
+			} break;
+
+
+			case FILE_ACTION_RENAMED_OLD_NAME: {
+				//printf("< %s\n", filename);
+				FileEvent* old_event = 0;
+				for (i32 i = changes_count-1; i >= 0; --i)
+				{
+					FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+					if (match(evt->name, filename))
+					{
+						old_event = evt;
+						break;
+					}
+				}
+				if (old_event)
+				{
+					if (old_event->old_name.size)
+					{
+						free(old_event->name.str);
+						old_event->name = {};
+					}
+					else
+					{
+						old_event->old_name = old_event->name;
+						old_event->name = {};
+					}
+				}
+				else
+				{
+					i32 evt_index = (file_event_size + changes_count) % sizeof(file_event_buffer);
+					FileEvent* evt = file_event_buffer + evt_index;
+					*evt = {};
+					evt->existed = true;
+					evt->old_name.str = strdup(filename);
+					evt->old_name.size = filenamelen;
+					++changes_count;
+				}
+			} break;
+
+			case FILE_ACTION_RENAMED_NEW_NAME: {
+				//printf("> %s\n", filename);
+				FileEvent* old_event = 0;
+				for (i32 i = changes_count-1; i >= 0; --i)
+				{
+					FileEvent* evt = file_event_buffer + ((file_event_size + i) % sizeof(file_event_buffer));
+					if (!evt->name.size && evt->old_name.size)
+					{
+						old_event = evt;
+						break;
+					}
+				}
+				if (old_event)
+				{
+					old_event->name.str = strdup(filename);
+					old_event->name.size = filenamelen;
+				}
+				else
+				{
+					printf("Error: could not find matching event to rename to : %s\n", filename);
+				}
+			} break;
+
 			default:
-				printf("\nDefault error.\n");
+				printf("\nUnknown action %d.\n", pNotify->Action);
 				break;
 			}
 
@@ -142,7 +416,62 @@ void watchDirectory(char** paths, i32 pathsSize)
 }
 #endif
 
+#if 0
+struct WatchData
+{
+	HANDLE* change_handles = 0;
+	String* paths = 0;
+	u32 paths_size = 0
+	MemoryArena arena;
+};
 
+WatchData watch_init(String* paths, i32 paths_size)
+{
+	WatchData result = {};
+	result.change_handles = pushArray(result.arena, HANDLE, paths_size);
+	result.paths = pushArray(result.arena, String, paths_size);
+	result.paths_size = paths_size;
+	for (i32 i = 0; i < paths_size; ++i)
+	{
+		result.paths[i] = pushStringZeroTerminated(result.arena, paths[i]);
+		result.change_handles[i] = FindFirstChangeNotification(result.paths[i].str, TRUE, FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE);
+	}
+}
+
+void watch_close(WatchData* watch)
+{
+	for (i32 i = 0; i < watch->paths_size; ++i)
+	{
+		FindCloseChangeNotification(changeHandles[i]);
+	}
+	watch->arena.clear();
+}
+
+void watch_list_changes(WatchData* watch)
+{
+	for (;;)
+	{
+		DWORD waitStatus = WaitForMultipleObjects(changeHandlesSize, changeHandles, FALSE, 0);
+		if (waitStatus == WAIT_TIMEOUT)
+		{
+			break;
+		}
+
+		if ( !( (WAIT_OBJECT_0 <= waitStatus) && (waitStatus < WAIT_OBJECT_0 + watch->paths_size) ) )
+		{
+			break;
+		}
+
+		i32 index = waitStatus - WAIT_OBJECT_0;
+		printf("Directory %d changed : %.*s\n", index, strexp(paths[index]));
+
+
+	}
+}
+#endif
+
+
+#if 0
 volatile b32 watchPathsChanged = false;
 
 //internal DWORD directory_watcher(void* _data)
@@ -230,3 +559,5 @@ void updateWatchedDirectories(State& state)
 		addEntryToWorkQueue(&state.dirWatchThread.queue, directory_watcher, &state);
 	}
 }
+#endif
+

@@ -16,7 +16,6 @@
 // let user create different search config presets (folders + extensions) : to easily switch between several presets
 
 
-
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
 #include "xfind.h"
@@ -49,7 +48,7 @@ static void initState(State& state, Config iconfig)
 	state.searchPaths = pushArray(state.arena, String, state.searchPathsSizeMax);
 	state.searchPathExists = false;
 	state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
-	updateWatchedDirectories(state);
+	
 
 	state.extensions = pushArray(state.arena, String, state.extensionsMaxSize);
 	state.extensionsSize = parseExtensions(state.extensions, state.extensionsMaxSize, state.config.ext.str);
@@ -289,7 +288,6 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 		if (modifFolders)
 		{
 			state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
-			updateWatchedDirectories(state);
 		}
 
 		if (modifExtensions)
@@ -337,6 +335,7 @@ static void showAbout(b32& showAbout)
 	if (ImGui::BeginPopupModal("About", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		ImGui::Text("xfind alpha by paul2t");
+		ImGui::Text("https://github.com/paul2t/xfind");
 		ImGui::BulletText("Using imgui and glfw");
 		ImGui::BulletText("Font: " DEFAULT_FONT_NAME);
 		if (ImGui::Button("OK"))
@@ -404,6 +403,7 @@ internal DWORD hot_key_listener(void* _data)
 				g_set_active_window = true;
 				WPARAM p = 0;
 				LPARAM l = 0;
+				_WriteBarrier();
 				SendMessageA(g_window_handle, WM_ERASEBKGND, p, l);
 			}
 		}
@@ -428,14 +428,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	}
 
 
-#if APP_INTERNAL && 0
+#if APP_INTERNAL && 1
 	char* paths[] =
 	{
 		"C:\\work\\xfind\\data\\folder\\bin",
 		"C:\\work\\xfind\\data\\folder\\src",
 	};
 	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
-	WatchDirectory("C:\\work\\xfind\\data\\folder");
+	WatchDirectory("C:\\work\\xfind\\code");
 	return 1;
 #endif
 #if APP_INTERNAL && 0
