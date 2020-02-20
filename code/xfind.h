@@ -1,5 +1,10 @@
 #pragma once
 
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "comdlg32.lib")
 
 #include <stdio.h>
 #include <windows.h>
@@ -190,7 +195,6 @@ internal volatile u64 searchTime = 0;
 #endif
 
 
-
 #include "xfind_config.cpp"
 
 #include "imgui_utils.cpp"
@@ -198,5 +202,5 @@ internal volatile u64 searchTime = 0;
 #include "xfind_ui.cpp"
 #include "xfind_worker_index.cpp"
 #include "xfind_worker_search.cpp"
-#include "xfind_watch_directory.cpp"
+#include "watch_directory.h"
 

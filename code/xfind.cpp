@@ -15,11 +15,12 @@
 // open folder : GetOpenFileNameA(OPENFILENAMEA*)
 // let user create different search config presets (folders + extensions) : to easily switch between several presets
 
-
+#if 1
 
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
 #include "xfind.h"
+#include "xfind_watch_directory.cpp"
 
 
 static void initState(State& state, Config iconfig)
@@ -50,6 +51,7 @@ static void initState(State& state, Config iconfig)
 	state.searchPathExists = false;
 	state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
 	updateWatchedDirectories(state);
+	
 
 	state.extensions = pushArray(state.arena, String, state.extensionsMaxSize);
 	state.extensionsSize = parseExtensions(state.extensions, state.extensionsMaxSize, state.config.ext.str);
@@ -337,6 +339,7 @@ static void showAbout(b32& showAbout)
 	if (ImGui::BeginPopupModal("About", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		ImGui::Text("xfind alpha by paul2t");
+		ImGui::Text("https://github.com/paul2t/xfind");
 		ImGui::BulletText("Using imgui and glfw");
 		ImGui::BulletText("Font: " DEFAULT_FONT_NAME);
 		if (ImGui::Button("OK"))
@@ -404,6 +407,7 @@ internal DWORD hot_key_listener(void* _data)
 				g_set_active_window = true;
 				WPARAM p = 0;
 				LPARAM l = 0;
+				_WriteBarrier();
 				SendMessageA(g_window_handle, WM_ERASEBKGND, p, l);
 			}
 		}
@@ -421,23 +425,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #if APP_INTERNAL
 	HINSTANCE hInstance = GetModuleHandle(NULL);
 #endif
-	
+
+	// Start Hot key listener
 	{
 		HANDLE threadHandle = CreateThread(0, 0, hot_key_listener, 0, 0, 0);
 		CloseHandle(threadHandle);
 	}
 
 
-#if APP_INTERNAL && 0
-	char* paths[] =
-	{
-		"C:\\work\\xfind\\data\\folder\\bin",
-		"C:\\work\\xfind\\data\\folder\\src",
-	};
-	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
-	WatchDirectory("C:\\work\\xfind\\data\\folder");
-	return 1;
-#endif
+
 #if APP_INTERNAL && 0
 	testSearch();
 	return 1;
@@ -501,3 +497,92 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	imguiCleanup(window);
     return 0;
 }
+
+#endif
+
+
+#if 0
+#include "watch_directory.h"
+int main()
+{
+	char* paths[] =
+	{
+		//"C:\\",
+		"C:\\work\\xfind",
+		// "C:\\work\\xfind\\build\\",
+		//"C:\\work\\xfind\\data\\folder\\bin",
+		//"C:\\work\\xfind\\data\\folder\\src",
+	};
+	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
+	WatchDir wd = watchdir_start(paths, sizeof(paths) / sizeof(*paths));
+	for (;;)
+	{
+		WatchDirEvent* evt = watchdir_get_event(wd);
+		assert(evt);
+		if (!evt) continue;
+
+		assert(evt->name && evt->name_size);
+		assert(!(evt->created && evt->deleted));
+		assert(!(evt->created && evt->modified));
+		assert(!(evt->created && (evt->old_name_size > 0)));
+		assert(!(evt->deleted && evt->modified));
+		assert(!(evt->deleted && (evt->old_name_size > 0)));
+
+#if DEBUG_WD
+		printf("=");
+#endif
+
+		if (evt->created)
+			printf("+ ");
+		else if (evt->deleted)
+			printf("- ");
+		else if (evt->modified)
+			printf("~ ");
+		else if (evt->existed && evt->old_name_size)
+			printf("  ");
+		else
+		{
+			assert(0);
+			continue;
+		}
+
+		if (evt->old_name_size)
+			printf(" %s -> %s", evt->old_name, evt->name);
+		else
+			printf(" %s", evt->name);
+
+		printf("\n");
+#if DEBUG_WD
+		printf("\n");
+#endif
+
+		printf("Max size reached: %d\n", wd.events.max_size_reached);
+		printf("remaining allocations: %d\n", allocations);
+		if (0 == strcmp(evt->name, "C:\\work\\xfind\\abcdef.txt"))
+			break;
+
+	}
+
+	printf("stop\n");
+	watchdir_stop(wd);
+
+	bool leaking = false;
+	for (auto&& a : allocs)
+	{
+		if (a.second != "")
+		{
+			fprintf(stderr, "leaking %s\n", a.second.c_str());
+			leaking = true;
+		}
+	}
+	assert(!leaking);
+
+	printf("Max size reached: %d\n", wd.events.max_size_reached);
+	printf("remaining allocations: %d\n", allocations);
+
+	return 1;
+}
+
+#endif
+
+
