@@ -81,48 +81,6 @@ void usage()
 #endif
 #endif
 
-
-#include <map>
-typedef std::map<void*, std::string> AllocMap;
-AllocMap allocs;
-
-int allocations = 0;
-inline char * strdup__(const char* name, const char *str1)
-{
-	allocations++;
-	char* ptr = strdup(str1);
-	std::string value = name;
-	value = value + " : " + str1;
-	//fprintf(stderr, "[%d] strdup(%s) %p\n", allocations, name, ptr);
-	allocs.insert(AllocMap::value_type(ptr, value));
-	return ptr;
-}
-
-void* malloc_(const char* name, size_t size)
-{
-	allocations++;
-	void* ptr = malloc(size);
-	//fprintf(stderr, "[%d] malloc(%s) %p\n", allocations, name, ptr);
-	allocs.insert(AllocMap::value_type(ptr, name));
-	return ptr;
-}
-
-void free_(const char* name, void* ptr)
-{
-	if (ptr)
-	{
-		allocations--;
-		//fprintf(stderr, "[%d] free(%s) %p\n", allocations, name, ptr);
-		allocs[ptr] = "";
-		free(ptr);
-	}
-}
-
-#define free(ptr) free_(#ptr, ptr)
-#undef strdup
-#define strdup(ptr) strdup__(#ptr, ptr)
-#define malloc(ptr) malloc_(#ptr, ptr)
-
 struct WatchDirEvent
 {
 	char* name;
@@ -227,8 +185,6 @@ WatchDir watchdir_start(char** dirs, int32_t dirs_size)
 		// NOTE: needed for initialization of the events.
 		read_changes(wd, i);
 	}
-
-	allocs.clear();
 
 	return wd;
 }
@@ -1022,36 +978,6 @@ WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms)
 	{
 		if (WatchDirEvent* evt = go_to_next_event(wd.events))
 			return evt;
-
-		if (allocs.size())
-		{
-			bool found = false;
-			for (auto&& a : allocs)
-			{
-				if (a.second != "")
-				{
-					found = true;
-					break;
-				}
-			}
-			if (found)
-			{
-				bool leaking = false;
-				for (auto&& a : allocs)
-				{
-					if (a.second != "")
-					{
-						fprintf(stdout, "leaking %s\n", a.second.c_str());
-						leaking = true;
-					}
-				}
-				assert(!leaking);
-			}
-			else
-			{
-				allocs.clear();
-			}
-		}
 
 		int32_t first_triggered = wait_for_event(wd, timeout_ms);
 		if (first_triggered < 0)
