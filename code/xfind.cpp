@@ -397,7 +397,7 @@ internal DWORD hot_key_listener(void* _data)
 {
 	if (RegisterHotKey(NULL, 1, MOD_ALT | MOD_NOREPEAT, 'X'))
 	{
-		printf("Hot key registered\n");
+		printf("Hot key registered : ALT + X\n");
 		MSG msg = {};
 		while (GetMessage(&msg, NULL, 0, 0))
 		{
@@ -411,6 +411,10 @@ internal DWORD hot_key_listener(void* _data)
 				SendMessageA(g_window_handle, WM_ERASEBKGND, p, l);
 			}
 		}
+	}
+	else
+	{
+		printf("FAILED to register hot key\n");
 	}
 
 	return 0;
