@@ -51,10 +51,10 @@ SearchStateMachine buildSearchStateMachine(MemoryArena& arena, String s, b32 cas
 		if (!hasCharUpTo(uniqueChars, uniqueCharsSize, c))
 			uniqueChars[uniqueCharsSize++] = c;
 		uniqueCharsCountUpToHere[i] = uniqueCharsSize;
-		maxTransitions += uniqueCharsSize;
+		maxTransitions += uniqueCharsSize*2;
 	}
 	uniqueCharsCountUpToHere[s.size] = uniqueCharsCountUpToHere[s.size - 1];
-	maxTransitions += uniqueCharsSize;
+	maxTransitions += uniqueCharsSize*2;
 
 	char* transitionsChars = pushArray(arena, char, maxTransitions, pushpNoClear());
 	SearchState** transitions = pushArray(arena, SearchState*, maxTransitions, pushpNoClear());
@@ -62,18 +62,40 @@ SearchStateMachine buildSearchStateMachine(MemoryArena& arena, String s, b32 cas
 	for (i32 i = 0; i <= s.size; ++i)
 	{
 		b32 isFinal = (i == s.size);
+		char c = s.str[i];
 
 		SearchState* state = states + i;
 		state->c = transitionsChars + transitionsSize;
 		state->t = transitions + transitionsSize;
 		state->final = isFinal;
 
-		if (i > 0) states[i - 1].t[0] = state;
+		if (i > 0)
+		{
+			SearchState* lastState = states + (i - 1);
+			for (int j = 0; j < lastState->n; ++j)
+			{
+				if (!lastState->t[j])
+					lastState->t[j] = state;
+			}
+		}
 
+		char c2 = 0;
 		if (!isFinal)
 		{
-			addStateTransition(state, caseInsensitive ? char_to_lower(s.str[i]) : s.str[i]);
+			addStateTransition(state, caseInsensitive ? char_to_lower(c) : c);
 			++transitionsSize;
+
+			// TODO search path assimilating '/' with '\'
+#if 0
+			if (c == '\\') c2 = '/';
+			else if (c == '/') c2 = '\\';
+
+			if (c2)
+			{
+				addStateTransition(state, c2);
+				++transitionsSize;
+			}
+#endif
 		}
 
 		// For each character used up to there, we look at the previous states
@@ -81,7 +103,7 @@ SearchStateMachine buildSearchStateMachine(MemoryArena& arena, String s, b32 cas
 		for (i32 j = 0; j < uniqueCharsCountUpToHere[i]; ++j)
 		{
 			char cj = uniqueChars[j];
-			if (i < s.size && cj == s.str[i]) continue;
+			if (i < s.size && (cj == c || cj == c2)) continue;
 
 			// For each previous state (including the current one)
 			for (i32 k = i; k > 0; --k)
