@@ -263,43 +263,67 @@ void execProgram(char* program)
 
 struct MutexRW
 {
-    u32 read = 0;
-    u32 write = 0;
+    volatile i32 read = 0;
+    volatile i32 write = 0;
 };
 
-inline void LockMutex(volatile u32* mutex)
+inline b32 TryLockMutex(volatile i32* mutex)
 {
-    u32 locked;
-    do {
-        locked = InterlockedCompareExchange((LONG volatile*)mutex, 1, 0);
-    } while (locked != 1);
+	return InterlockedCompareExchange((LONG volatile*)mutex, 1, 0);
+}
+
+inline void LockMutex(volatile i32* mutex)
+{
+	while (!TryLockMutex(mutex));
     _WriteBarrier();
 }
 
-inline void UnlockMutex(volatile u32* mutex)
+inline void UnlockMutex(volatile i32* mutex)
 {
     _WriteBarrier();
     *mutex = 0;
 }
 
-inline void LockMutexRead(volatile MutexRW* mutex)
+inline b32 TryLockMutexRead(MutexRW* mutex)
+{
+	if (TryLockMutex(&mutex->write))
+	{
+		InterlockedAdd((volatile LONG*)&mutex->read, 1);
+		UnlockMutex(&mutex->write);
+		return true;
+	}
+	return false;
+}
+
+inline void LockMutexRead(MutexRW* mutex)
 {
     LockMutex(&mutex->write);
-    mutex->read++;
+	InterlockedAdd((volatile LONG*)&mutex->read, 1);
     UnlockMutex(&mutex->write);
 }
 
-inline void UnlockMutexRead(volatile MutexRW* mutex)
+inline void UnlockMutexRead(MutexRW* mutex)
 {
     _WriteBarrier();
-    mutex->read--;
+	InterlockedAdd((volatile LONG*)&mutex->read, -1);
     assert(mutex->read >= 0);
 }
 
-inline void LockMutexWrite(volatile MutexRW* mutex)
+inline b32 TryLockMutexWrite(MutexRW* mutex, i32 expectedReads = 0)
+{
+	if (TryLockMutex(&mutex->write))
+	{
+		if (mutex->read <= expectedReads)
+			return true;
+		UnlockMutex(&mutex->write);
+	}
+	return false;
+}
+
+inline void LockMutexWrite(MutexRW* mutex, i32 expectedReads = 0)
 {
     LockMutex(&mutex->write);
-    while (mutex->read) {};
+    while (mutex->read > expectedReads) {};
 }
 
 inline void UnlockMutexWrite(volatile MutexRW* mutex)
@@ -308,26 +332,70 @@ inline void UnlockMutexWrite(volatile MutexRW* mutex)
 }
 
 
-struct ScopeMutex
+#ifdef __cplusplus
+
+struct _ScopeMutex
 {
-    volatile u32* mutex;
-    ScopeMutex(volatile u32* mutex) : mutex(mutex) { LockMutex(mutex); }
-    ~ScopeMutex() { UnlockMutex(mutex); }
+    volatile i32* mutex;
+    _ScopeMutex(volatile i32* mutex) : mutex(mutex) { LockMutex(mutex); }
+    ~_ScopeMutex() { UnlockMutex(mutex); }
 };
 
-struct ScopeMutexRead
-{
-    volatile MutexRW* mutex;
-    ScopeMutexRead(volatile MutexRW* mutex) : mutex(mutex) { LockMutexRead(mutex); }
-    ~ScopeMutexRead() { UnlockMutexRead(mutex); }
-};
+#define CONCAT_(a, b) a ## b
+#define CONCAT(a, b) CONCAT_(a, b)
+#define ScopeMutex(mutex) _ScopeMutex CONCAT(mutex_, __LINE__)(mutex)
 
-struct ScopeMutexWrite
+struct _ScopeMutexRead
 {
-    volatile MutexRW* mutex;
-    ScopeMutexWrite(volatile MutexRW* mutex) : mutex(mutex) { LockMutexWrite(mutex); }
-    ~ScopeMutexWrite() { UnlockMutexWrite(mutex); }
+    MutexRW* mutex;
+    _ScopeMutexRead(MutexRW* mutex) : mutex(mutex) { LockMutexRead(mutex); }
+    ~_ScopeMutexRead() { UnlockMutexRead(mutex); }
 };
+#define ScopeMutexRead(mutex) _ScopeMutexRead CONCAT(mutex_, __LINE__)(mutex)
+
+struct _ScopeMutexWrite
+{
+    MutexRW* mutex;
+    _ScopeMutexWrite(MutexRW* mutex, u32 expectedReads = 0) : mutex(mutex) { LockMutexWrite(mutex, expectedReads); }
+    ~_ScopeMutexWrite() { UnlockMutexWrite(mutex); }
+};
+#define ScopeMutexWrite(mutex, ...) _ScopeMutexWrite CONCAT(mutex_, __LINE__)(mutex, ##__VA_ARGS__)
+
+
+
+
+
+
+
+// Atomic list
+
+template <typename T>
+inline void AtomicListAppend(T**& listEnd, T* element)
+{
+	volatile T** list = *(volatile T***)&listEnd;
+	while (InterlockedCompareExchange64((volatile LONG64*)&listEnd, (LONG64)&element->next, (LONG64)list) != (LONG64)list)
+		list = *(volatile T***)&listEnd;
+	*list = element;
+}
+
+template <typename T>
+inline T* AtomicListPopFirst(T*& list)
+{
+	T* entry = (T*)*(volatile T**)&list;
+	while (entry && InterlockedCompareExchange64((volatile LONG64*)&list, (LONG64)entry->next, (LONG64)entry) != (LONG64)entry)
+		entry = (T*)*(volatile T**)&list;
+	return entry;
+}
+
+template <typename T>
+inline void AtomicListInsert(T*& list, T* element, T*&next)
+{
+	next = (T*)*(volatile T**)&list;
+	while (InterlockedCompareExchange64((volatile LONG64*)&list, (LONG64)element, (LONG64)next) != (LONG64)next)
+		next = (T*)*(volatile T**)&list;
+}
+
+#endif
 
 
 //
