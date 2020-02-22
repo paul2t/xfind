@@ -52,7 +52,9 @@ void usage()
 #endif
 
 
+#ifndef SMART_EVENT_MERGING
 #define SMART_EVENT_MERGING 1
+#endif
 
 #if APP_INTERNAL
 #define DEBUG_WD 0
@@ -107,17 +109,19 @@ struct WatchDirEventBuffer
 struct WatchDir
 {
 	int32_t dirs_size = 0;
+	int32_t handles_size = 0;
 	struct _WatchDir* dirs = 0;
 	HANDLE* watch_handles = 0;
 	int32_t result_buffers_size = 0;
 	FILE_NOTIFY_INFORMATION** result = 0;
+	HANDLE userHandle = INVALID_HANDLE_VALUE;
 
 	WatchDirEventBuffer events = {};
 };
 
 
 WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms = INFINITE);
-WatchDir watchdir_start(char** dirs, int32_t dirs_size);
+WatchDir watchdir_start(char** dirs, int32_t dirs_size, HANDLE userHandle = INVALID_HANDLE_VALUE);
 void watchdir_stop(WatchDir& wd);
 
 
@@ -143,17 +147,21 @@ void free_event(WatchDirEvent& evt)
 
 static bool read_changes(WatchDir& wd, int32_t i);
 
-WatchDir watchdir_start(char** dirs, int32_t dirs_size)
+WatchDir watchdir_start(char** dirs, int32_t dirs_size, HANDLE userHandle)
 {
 	WatchDir wd = {};
-
+	
+	bool hasUserHandle = userHandle != INVALID_HANDLE_VALUE;
+	wd.userHandle = userHandle;
 	wd.dirs_size = dirs_size;
+	wd.handles_size = wd.dirs_size + (hasUserHandle ? 1 : 0);
 
 	wd.dirs = (_WatchDir*)(malloc(dirs_size * sizeof(_WatchDir)));
 	memset(wd.dirs, 0, dirs_size * sizeof(_WatchDir));
 
-	wd.watch_handles = (HANDLE*)(malloc(dirs_size * sizeof(HANDLE)));
-	memset(wd.watch_handles, 0, dirs_size * sizeof(HANDLE));
+	wd.watch_handles = (HANDLE*)(malloc((dirs_size + 1) * sizeof(HANDLE)));
+	memset(wd.watch_handles, -1, dirs_size * sizeof(HANDLE));
+	wd.watch_handles[dirs_size] = userHandle;
 
 	wd.result_buffers_size = 8192;
 	wd.result = (FILE_NOTIFY_INFORMATION**)(malloc(dirs_size * sizeof(FILE_NOTIFY_INFORMATION*)));
@@ -231,13 +239,15 @@ void watchdir_stop(WatchDir& wd)
 	wd = {};
 }
 
-// @return The index of the first directory that triggered an event (there can be several). -1 if timeout.
+// @return The index of the first directory that triggered an event (there can be several). -1 if timeout. -2 if userHandle.
 static int32_t wait_for_event(WatchDir& wd, uint32_t timeout_ms = INFINITE)
 {
-	DWORD waitStatus = WaitForMultipleObjects(wd.dirs_size, wd.watch_handles, FALSE, timeout_ms);
+	DWORD waitStatus = WaitForMultipleObjects(wd.handles_size, wd.watch_handles, FALSE, timeout_ms);
 	//DWORD waitStatus = WaitForSingleObject(wd.dirs[0].overlapped.hEvent, timeout_ms);
 	if (WAIT_OBJECT_0 <= waitStatus && waitStatus < WAIT_OBJECT_0 + wd.dirs_size)
 		return waitStatus - WAIT_OBJECT_0;
+	if (waitStatus >= WAIT_OBJECT_0 + wd.dirs_size)
+		return -2;
 	return -1;
 }
 
