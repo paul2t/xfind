@@ -8,7 +8,7 @@ void execOpenFile(String program, String filename, i32 fileline, i32 column)
 		char c = program.str[ci];
 		if (char_is_slash(c) && call.size > 0 && char_is_slash(call.str[call.size - 1])) continue;
 
-		if (0 == strncmp(program.str + ci, ARG_HOME, sizeof(ARG_HOME) - 1))
+		if (0 == strnicmp(program.str + ci, ARG_HOME, sizeof(ARG_HOME) - 1))
 		{
 			String tail = tailstr(call);
 			DWORD envSize = GetEnvironmentVariableA("home", tail.str, tail.memory_size);
