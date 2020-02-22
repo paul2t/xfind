@@ -1,5 +1,6 @@
 
 
+#if 0
 volatile b32 watchPathsChanged = false;
 
 WORK_QUEUE_CALLBACK(directory_watcher)
@@ -7,6 +8,7 @@ WORK_QUEUE_CALLBACK(directory_watcher)
 	State* state = (State*)data;
 	String* paths = state->watchPaths;
 	i32 pathsSize = state->watchPathsSize;
+	static HANDLE semaphore = CreateSemaphoreExA(0, 0, 1, 0, 0, SEMAPHORE_ALL_ACCESS);
 
 	char** cpaths = new char*[pathsSize];
 	for (int i = 0; i < pathsSize; ++i)
@@ -15,14 +17,14 @@ WORK_QUEUE_CALLBACK(directory_watcher)
 		cpaths[i] = paths[i].str;
 	}
 
-	WatchDir wd = watchdir_start(cpaths, pathsSize);
+	WatchDir wd = watchdir_start(cpaths, pathsSize, semaphore);
 	for (;;)
 	{
 		WatchDirEvent* evt = watchdir_get_event(wd);
 		if (watchPathsChanged) break;
 
 		assert(evt);
-		if (!evt) continue;
+		if (!evt) break;
 
 		assert(evt->name && evt->name_size);
 		assert(!(evt->created && evt->deleted));
@@ -65,25 +67,22 @@ WORK_QUEUE_CALLBACK(directory_watcher)
 
 	delete[] cpaths;
 }
+#endif
 
 void updateWatchedDirectories(State& state)
 {
+	watchdir_stop(state.wd);
 	if (state.searchPathExists && state.searchPaths && state.searchPathsSize > 0)
 	{
-		if (state.dirWatchThread.nbThreads <= 0)
-			initThreadPool(state.arena, state.dirWatchThread, 1);
-
-		cleanWorkQueue(&state.dirWatchThread.queue, &watchPathsChanged);
-
 		state.watchArena.Release();
-		state.watchPaths = pushArray(state.watchArena, String, state.searchPathsSize);
+		state.watchPaths = pushArray(state.watchArena, char*, state.searchPathsSize);
 		for (i32 i = 0; i < state.searchPathsSize; ++i)
 		{
-			state.watchPaths[i] = pushStringZeroTerminated(state.watchArena, state.searchPaths[i]);
+			state.watchPaths[i] = pushStringZeroTerminated(state.watchArena, state.searchPaths[i]).str;
 		}
 		state.watchPathsSize = state.searchPathsSize;
 
-		addEntryToWorkQueue(&state.dirWatchThread.queue, directory_watcher, &state);
+		state.wd = watchdir_start(state.watchPaths, state.watchPathsSize);
 	}
 }
 

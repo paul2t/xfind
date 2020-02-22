@@ -349,6 +349,17 @@ static void showAbout(b32& showAbout)
 	}
 }
 
+static void watchDirectory(State& state)
+{
+	bool modified = false;
+	while (WatchDirEvent* evt = watchdir_get_event(state.wd, 0))
+		modified = true;
+	if (modified)
+	{
+		state.needToGenerateIndex = true;
+	}
+}
+
 static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 {
 	ImGuiIO& io = g.IO;
@@ -360,6 +371,8 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
 
 	drawMenuBar(io, state);
+
+	watchDirectory(state);
 
 	b32 inputModified = handleInputs(io, state);
 

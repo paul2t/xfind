@@ -17,6 +17,7 @@
 #include "directory.h"
 #include "threads.h"
 #include "search_state_machine.cpp"
+#include "watch_directory.h"
 
 
 const char argChar = '%';
@@ -146,8 +147,9 @@ struct State
 
 	MemoryArena watchArena = {};
 	ThreadPool dirWatchThread = {};
-	String* watchPaths = 0;
+	char** watchPaths = 0;
 	i32 watchPathsSize = 0;
+	WatchDir wd = {};
 	
 	b32 running = true;
 
@@ -202,5 +204,4 @@ internal volatile u64 searchTime = 0;
 #include "xfind_ui.cpp"
 #include "xfind_worker_index.cpp"
 #include "xfind_worker_search.cpp"
-#include "watch_directory.h"
 
