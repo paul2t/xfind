@@ -65,6 +65,46 @@ internal void SetIcon(HWND hwnd, void* data, i32 imageCount)
 #endif
 
 
+inline ImVec2 ScreenToWindowPosition(const ImVec2& pos)
+{
+	ImVec2 wPos = ImGui::GetWindowPos();
+	ImVec2 scroll = ImGui::GetCurrentWindowRead()->Scroll;
+	return pos - wPos + scroll;
+}
+
+inline ImVec2 WindowToScreenPosition(const ImVec2& pos)
+{
+	ImVec2 wPos = ImGui::GetWindowPos();
+	ImVec2 scroll = ImGui::GetCurrentWindowRead()->Scroll;
+	return pos + wPos - scroll;
+}
+
+inline ImVec2 GetContensRegionDimensions()
+{
+	ImGuiWindow* window = ImGui::GetCurrentWindowRead();
+	return ImVec2(window->ContentsRegionRect.GetWidth(), window->ContentsRegionRect.GetHeight());
+}
+
+static bool IsScreenLineOnScreen(float screenLineY)
+{
+	float availY = GetContensRegionDimensions().y;
+	float windowY = ImGui::GetWindowPos().y;
+	bool isLineOnScreen = screenLineY >= 0 && screenLineY - windowY - availY <= 0;
+	return isLineOnScreen;
+}
+
+inline bool IsLineOnScreen(float lineY)
+{
+	//float screenLineY = WindowToScreenPosition(ImVec2(0, lineY)).y;
+	return IsScreenLineOnScreen(lineY);
+}
+
+inline bool IsCurrentLineOnScreen()
+{
+	return IsScreenLineOnScreen(ImGui::GetCursorScreenPos().y);
+}
+
+
 inline b32 IsActiveWindow(WINDOW window)
 {
 	b32 isActiveWindow = false;
