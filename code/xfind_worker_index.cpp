@@ -14,54 +14,6 @@ inline void DEBUG_TEST_TIMER(u32 test, volatile u64& start, volatile u64& time)
 #define DEBUG_TEST_TIMER(...)
 #endif
 
-internal u32 hash(String s)
-{
-	char* at = s.str;
-	u32 result = 0;
-	for (i32 i = 0; i < s.size; ++i)
-		result = (result << 8 | result >> 24) + *at;
-	return result;
-}
-
-internal FileIndexEntry* getFileFromPath(FileIndex* fileIndex, String path)
-{
-	i32 pathHash = hash(path) % fileIndex->filePathHashSize;
-	FileIndexEntry* entry = fileIndex->filePathHash[pathHash];
-	while (entry && !match(entry->path, path)) entry = entry->nextInPathHash;
-	return entry;
-}
-
-internal FileIndexEntry* getOrCreateFileFromPath(FileIndex* fileIndex, String path, i32 rootSize = 0)
-{
-	i32 pathHash = hash(path) % fileIndex->filePathHashSize;
-	FileIndexEntry* entry = fileIndex->filePathHash[pathHash];
-	while (entry && !match(entry->path, path)) entry = entry->nextInPathHash;
-	if (!entry)
-	{
-		FileIndexEntry* firstEntry = fileIndex->filePathHash[pathHash];
-		entry = fileIndex->firstRemovedFile;
-		if (entry)
-			fileIndex->firstRemovedFile = entry->next;
-		else
-			entry = pushStruct(fileIndex->arena, FileIndexEntry);
-
-		entry->modifiedSinceLastSearch = true;
-		entry->path = path;
-		entry->path.str = strdup(path.str);
-
-		entry->nextInPathHash = firstEntry;
-		fileIndex->filePathHash[pathHash] = entry;
-
-		entry->next = 0;
-		*fileIndex->onePastLastFile = entry;
-		fileIndex->onePastLastFile = &entry->next;
-	}
-
-	entry->relpath = substr(entry->path, rootSize);
-
-	return entry;
-}
-
 volatile b32 workerSearchPatternShouldStop;
 volatile b32 workerLoadIndexShouldStop;
 volatile b32 workerIndexerShouldStop;
@@ -128,156 +80,170 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	String* searchPaths = state->searchPaths;
 	i32 searchPathsSize = state->searchPathsSize;
 	FileIndex* fileIndex = &state->index;
-	String* searchExtensions = state->extensions;
-	i32 searchExtensionsSize = state->extensionsSize;
-	MemoryArena& indexArena = state->index.arena;
-	//indexArena.Release();
-	FileIndexEntry** onePastLastFile = fileIndex->onePastLastFile;
 
-	// TODO(xf4): make a separate array. Might be faster ?!?!
-	for (FileIndexEntry* ei = fileIndex->firstFile; ei; ei = ei->next)
-		ei->seenInIndex = false;
-
-	for (i32 pi = 0; pi < searchPathsSize; ++pi)
+	bool locked = true;
+	while (!TryLockMutex(&fileIndex->mutex.write))
 	{
-		if (workerIndexerShouldStop) break;
-		char _pathbuffer[4096];
-		String searchPath = make_fixed_width_string(_pathbuffer);
-		copy(&searchPath, searchPaths[pi]);
-		for (int ci = 0; ci < searchPath.size; ++ci) if (searchPath.str[ci] == '/') searchPath.str[ci] = '\\';
-		if (char_is_slash(searchPath.str[searchPath.size - 1]))
-			searchPath.size--;
+		if (workerIndexerShouldStop)
+		{
+			locked = false;
+			break;
+		}
+	}
+	
+	if (locked)
+	{
+		while (fileIndex->mutex.read)
+		{
+			if (workerIndexerShouldStop)
+			{
+				UnlockMutex(&fileIndex->mutex.write);
+				locked = false;
+				break;
+			}
+		}
+	}
 
-		// Already indexed
-		if (findStringInArrayInsensitive(searchPaths, pi, searchPath))
-			continue;
+	if (locked)
+	{
+		String* searchExtensions = state->extensions;
+		i32 searchExtensionsSize = state->extensionsSize;
 
-		append(&searchPath, "\\*");
-		terminate_with_null(&searchPath);
+		// TODO(xf4): make a separate array. Might be faster ?!?!
+		for (FileIndexEntry* ei = fileIndex->firstFile; ei; ei = ei->next)
+			ei->seenInIndex = false;
 
-		Directory stack[1024];
-		int searchPathSizeStack[1024];
-		searchPathSizeStack[0] = 0;
-		Directory* current = stack;
-		dfind(current, searchPath.str);
-		searchPath.size--; // remove the '*'
-		i32 stackSize = 1;
-		while (stackSize > 0)
+		for (i32 pi = 0; pi < searchPathsSize; ++pi)
 		{
 			if (workerIndexerShouldStop) break;
-			if (current->found)
+			char _pathbuffer[4096];
+			String searchPath = make_fixed_width_string(_pathbuffer);
+			copy(&searchPath, searchPaths[pi]);
+			for (int ci = 0; ci < searchPath.size; ++ci) if (searchPath.str[ci] == '/') searchPath.str[ci] = '\\';
+			if (char_is_slash(searchPath.str[searchPath.size - 1]))
+				searchPath.size--;
+
+			// Path already indexed
+			if (findStringInArrayInsensitive(searchPaths, pi, searchPath))
+				continue;
+
+			append(&searchPath, "\\*");
+			terminate_with_null(&searchPath);
+
+			Directory stack[1024];
+			int searchPathSizeStack[1024];
+			searchPathSizeStack[0] = 0;
+			Directory* current = stack;
+			dfind(current, searchPath.str);
+			searchPath.size--; // remove the '*'
+			i32 stackSize = 1;
+			while (stackSize > 0)
 			{
-				if (!isHidden(current) || state->config.showHiddenFiles)
+				if (workerIndexerShouldStop) break;
+				if (current->found)
 				{
-					if (isDir(current))
+					if (!isHidden(current) || state->config.showHiddenFiles)
 					{
-						if (stackSize < ArrayCount(stack))
+						if (isDir(current))
 						{
-							searchPathSizeStack[stackSize - 1] = searchPath.size;
-							append(&searchPath, current->name);
+							if (stackSize < ArrayCount(stack))
+							{
+								searchPathSizeStack[stackSize - 1] = searchPath.size;
+								append(&searchPath, current->name);
 
-							// No already indexed
-							if (!findStringInArrayInsensitive(searchPaths, searchPathsSize, searchPath))
-							{
-								append(&searchPath, "\\*");
-								terminate_with_null(&searchPath);
-								current = stack + stackSize;
-								stackSize++;
-								dfind(current, searchPath.str);
-								searchPath.size--; // remove the '*'
-								continue;
-							}
-							searchPath.size = searchPathSizeStack[stackSize - 1];
-						}
-					}
-					else
-					{
-						String filename = make_string_slowly(current->name);
-						String fileext = file_extension(filename);
-						bool matchext = false;
-						for (i32 ei = 0; ei < searchExtensionsSize; ++ei)
-						{
-							if (match(fileext, searchExtensions[ei]))
-							{
-								matchext = true;
-								break;
+								// No already indexed
+								if (!findStringInArrayInsensitive(searchPaths, searchPathsSize, searchPath))
+								{
+									append(&searchPath, "\\*");
+									terminate_with_null(&searchPath);
+									current = stack + stackSize;
+									stackSize++;
+									dfind(current, searchPath.str);
+									searchPath.size--; // remove the '*'
+									continue;
+								}
+								searchPath.size = searchPathSizeStack[stackSize - 1];
 							}
 						}
-						if (matchext)
+						else
 						{
-							String file = searchPath;
-							append(&file, filename);
-							terminate_with_null(&file);
+							String filename = make_string_slowly(current->name);
+							String fileext = file_extension(filename);
+							// Is valid extension.
+							if (findStringInArrayInsensitive(searchExtensions, searchExtensionsSize, fileext))
+							{
+								String file = searchPath;
+								append(&file, filename);
+								terminate_with_null(&file);
 
-							FileIndexEntry* fileEntry = getOrCreateFileFromPath(fileIndex, file, searchPaths[pi].size + 1);
-							fileEntry->seenInIndex = true;
+								FileIndexEntry* fileEntry = getOrCreateFileFromPath(fileIndex, file, searchPaths[pi].size + 1, 1);
+								fileEntry->seenInIndex = true;
 
-							InterlockedIncrement(&indexingInProgress);
-							addEntryToWorkQueue(queue, workerReloadFileToMemory, fileEntry);
+								InterlockedIncrement(&indexingInProgress);
+								addEntryToWorkQueue(queue, workerReloadFileToMemory, fileEntry);
+							}
 						}
 					}
 				}
+				else
+				{
+					dclose(current);
+					stackSize--;
+					if (stackSize <= 0)
+						break;
+					current = stack + stackSize - 1;
+					searchPath.size = searchPathSizeStack[stackSize - 1];
+				}
+				dnext(current);
+			}
+		}
+
+		// NOTE(xf4): Remove files that haven't been seen while searching.
+		i32 filesSize = 0;
+		FileIndexEntry _tmpe = {};
+		for (FileIndexEntry* ei = fileIndex->firstFile, **prevnext = &fileIndex->firstFile; ei; ei = ei->next)
+		{
+			if (workerIndexerShouldStop) break;
+			++filesSize;
+			if (!ei->seenInIndex)
+			{
+				ScopeMutexWrite(&ei->mutex);
+				--filesSize;
+
+				if (ei == fileIndex->firstFile)
+					AtomicListPopFirst(fileIndex->firstFile);
+
+				u32 hid = hash(ei->path) % fileIndex->filePathHashSize;
+				FileIndexEntry** firstH = &fileIndex->filePathHash[hid];
+				for (; *firstH; firstH = &((*firstH)->nextInPathHash))
+				{
+					if (match((*firstH)->path, ei->path))
+					{
+						auto** nextH = &(*firstH)->nextInPathHash;
+						*firstH = *nextH;
+						firstH = nextH;
+						break;
+					}
+				}
+				ei->nextInPathHash = 0;
+				FileIndexEntry* nexte = ei->next;
+
+				freeFileIndexEntry(ei);
+
+				_tmpe.next = nexte;
+				*prevnext = nexte;
+				ei = &_tmpe;
 			}
 			else
 			{
-				dclose(current);
-				stackSize--;
-				if (stackSize <= 0)
-					break;
-				current = stack + stackSize - 1;
-				searchPath.size = searchPathSizeStack[stackSize - 1];
+				prevnext = &ei->next;
 			}
-			dnext(current);
 		}
+
+		fileIndex->filesSize = filesSize;
+
+		UnlockMutexWrite(&fileIndex->mutex);
 	}
-
-	// NOTE(xf4): Remove files that haven't been seen while searching.
-	i32 filesSize = 0;
-	FileIndexEntry _tmpe = {};
-	for (FileIndexEntry* ei = fileIndex->firstFile, **prevnext = &fileIndex->firstFile; ei; ei = ei->next)
-	{
-		if (workerIndexerShouldStop) break;
-		++filesSize;
-		if (!ei->seenInIndex)
-		{
-			ScopeMutex(&ei->mutex);
-			--filesSize;
-
-			FileIndexEntry* nexte = ei->next;
-			u32 hid = hash(ei->path) % fileIndex->filePathHashSize;
-			FileIndexEntry** firstH = &fileIndex->filePathHash[hid];
-			for (; *firstH; firstH = &((*firstH)->nextInPathHash))
-			{
-				if (match((*firstH)->path, ei->path))
-				{
-					auto** nextH = &(*firstH)->nextInPathHash;
-					*firstH = *nextH;
-					firstH = nextH;
-					break;
-				}
-			}
-			ei->nextInPathHash = 0;
-
-
-			free(ei->content.str);
-			free(ei->path.str);
-			*ei = {};
-			ei->next = fileIndex->firstRemovedFile;
-			fileIndex->firstRemovedFile = ei;
-			if (fileIndex->onePastLastFile == &ei->next)
-				fileIndex->onePastLastFile = prevnext;
-			*prevnext = nexte;
-
-			ei = &_tmpe;
-			ei->next = nexte;
-		}
-		else
-		{
-			prevnext = &ei->next;
-		}
-	}
-
-	fileIndex->filesSize = filesSize;
 
 	u32 test = InterlockedDecrement(&indexingInProgress);
 	DEBUG_TEST_TIMER(!test, indexTimeStart, indexTime);
@@ -287,7 +253,8 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 #endif
 	//u64 ticksEnd = getTickCount();
 	//printf("Found %d files in %llums\n", filesSize, (ticksEnd - ticksStart));
-	//printMemUsage(indexArena);
+	state->shouldWaitForEvent = false;
+	glfwPostEmptyEvent();
 }
 
 internal void stopFileIndex(State* state)

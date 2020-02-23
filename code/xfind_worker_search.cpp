@@ -10,6 +10,7 @@ struct WorkerSearchData
 	i32 resultsSizeLimit;
 	b32 trackLineIndex;
 	b32 caseSensitive;
+	volatile b32* shouldWaitForEvent;
 };
 
 
@@ -31,6 +32,9 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	{
 		u32 test = InterlockedDecrement(&searchInProgress);
 		DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
+
+		wdata->shouldWaitForEvent = false;
+		glfwPostEmptyEvent();
 		return;
 	}
 
@@ -43,7 +47,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		FILETIME lastWriteTime = GetLastWriteTime(filei->path.str);
 		if (CompareFileTime(&filei->lastWriteTime, &lastWriteTime))
 		{
-			ScopeMutex(&filei->mutex);
+			ScopeMutexWrite(&filei->mutex);
 
 			//printf("file %s has been modified since last index.\n", filei->path.str);
 			FILE* file = fopen(filei->path.str, "rb");
@@ -158,6 +162,9 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 
 	u32 test = InterlockedDecrement(&searchInProgress);
 	DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
+
+	wdata->shouldWaitForEvent = false;
+	glfwPostEmptyEvent();
 }
 
 volatile u32 mainWorkerSearchPatternShouldStop;
@@ -200,6 +207,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				searchData->file = file;
 				searchData->trackLineIndex = false;
 				searchData->caseSensitive = state->config.caseSensitive;
+				searchData->shouldWaitForEvent = &state->shouldWaitForEvent;
 
 				InterlockedIncrement(&searchInProgress);
 				addEntryToWorkQueue(queue, workerSearchPattern, searchData);
@@ -229,6 +237,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				searchData->resultsSizeLimit = resultsSizeLimit;
 				searchData->trackLineIndex = true;
 				searchData->caseSensitive = state->config.caseSensitive;
+				searchData->shouldWaitForEvent = &state->shouldWaitForEvent;
 
 				InterlockedIncrement(&searchInProgress);
 				addEntryToWorkQueue(queue, workerSearchPattern, searchData);
@@ -238,6 +247,9 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 
 	u32 test = InterlockedDecrement(&searchInProgress);
 	DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
+
+	wdata->state->shouldWaitForEvent = false;
+	glfwPostEmptyEvent();
 }
 
 

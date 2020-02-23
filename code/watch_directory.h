@@ -116,13 +116,24 @@ struct WatchDir
 	FILE_NOTIFY_INFORMATION** result = 0;
 	HANDLE userHandle = INVALID_HANDLE_VALUE;
 
+	// If set to true, will not delete the data of the old events.
+	// You will be responsible for calling watchdir_free_event() on the event.
+	bool keep_old_events_data = false;
+
 	WatchDirEventBuffer events = {};
 };
 
 
-WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms = INFINITE);
 WatchDir watchdir_start(char** dirs, int32_t dirs_size, HANDLE userHandle = INVALID_HANDLE_VALUE);
 void watchdir_stop(WatchDir& wd);
+
+WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms = INFINITE, int32_t wait_result = -1);
+WatchDirEvent* watchdir_peek_next_event(WatchDir& wd);
+
+// @return The index of the first directory that triggered an event (there can be several). -1 if timeout. -2 if userHandle.
+int32_t watchdir_wait_for_event(WatchDir& wd, uint32_t timeout_ms = INFINITE);
+
+void watchdir_free_event(WatchDirEvent& evt);
 
 
 
@@ -137,10 +148,12 @@ struct _WatchDir
 
 
 
-void free_event(WatchDirEvent& evt)
+void watchdir_free_event(WatchDirEvent& evt)
 {
-	free(evt.name);
-	free(evt.old_name);
+	if (evt.name) free(evt.name);
+	int breakhere = 1;
+	if (evt.old_name) free(evt.old_name);
+	int breakhere2 = 1;
 	evt = {};
 }
 
@@ -201,7 +214,7 @@ static WatchDirEvent* go_to_next_event(WatchDirEventBuffer& events)
 {
 	if (events.last >= 0)
 	{
-		free_event(events.data[events.last]);
+		watchdir_free_event(events.data[events.last]);
 		events.last = -1;
 	}
 	if (events.start != events.next)
@@ -240,13 +253,12 @@ void watchdir_stop(WatchDir& wd)
 }
 
 // @return The index of the first directory that triggered an event (there can be several). -1 if timeout. -2 if userHandle.
-static int32_t wait_for_event(WatchDir& wd, uint32_t timeout_ms = INFINITE)
+int32_t watchdir_wait_for_event(WatchDir& wd, uint32_t timeout_ms)
 {
 	DWORD waitStatus = WaitForMultipleObjects(wd.handles_size, wd.watch_handles, FALSE, timeout_ms);
-	//DWORD waitStatus = WaitForSingleObject(wd.dirs[0].overlapped.hEvent, timeout_ms);
 	if (WAIT_OBJECT_0 <= waitStatus && waitStatus < WAIT_OBJECT_0 + wd.dirs_size)
 		return waitStatus - WAIT_OBJECT_0;
-	if (waitStatus >= WAIT_OBJECT_0 + wd.dirs_size)
+	if (waitStatus == WAIT_OBJECT_0 + wd.dirs_size)
 		return -2;
 	return -1;
 }
@@ -343,7 +355,7 @@ inline WatchDirEvent* get_last_event(WatchDirEventBuffer events)
 	return find_last_event(events, [](auto* evt) { return true; });
 }
 
-WatchDirEvent* get_next_event(WatchDirEventBuffer& events)
+static WatchDirEvent* get_next_event(WatchDirEventBuffer& events)
 {
 	WatchDirEvent* evt = events.data + events.next;
 	*evt = {};
@@ -356,11 +368,11 @@ WatchDirEvent* get_next_event(WatchDirEventBuffer& events)
 	return evt;
 }
 
-void remove_event(WatchDirEventBuffer& events, WatchDirEvent* old_event)
+static void remove_event(WatchDirEventBuffer& events, WatchDirEvent* old_event)
 {
 	if (!old_event) return;
 
-	free_event(*old_event);
+	watchdir_free_event(*old_event);
 	// Shift all events by one.
 	if (old_event > events.data + events.next)
 	{
@@ -380,7 +392,7 @@ void remove_event(WatchDirEventBuffer& events, WatchDirEvent* old_event)
 		events.next = events.max_size - 1;
 }
 
-WatchDirEvent* add_event(WatchDirEventBuffer& events, WatchDirEvent evt)
+static WatchDirEvent* add_event(WatchDirEventBuffer& events, WatchDirEvent evt)
 {
 	auto* result = get_next_event(events);
 	*result = evt;
@@ -395,7 +407,7 @@ WatchDirEvent* add_event(WatchDirEventBuffer& events, WatchDirEvent evt)
 #endif
 
 
-WatchDirEvent* add_event_created_raw(WatchDirEventBuffer& events, char* filename, int filenamelen)
+static WatchDirEvent* add_event_created_raw(WatchDirEventBuffer& events, char* filename, int filenamelen)
 {
 	WatchDirEvent evt = {};
 	evt.created = true;
@@ -404,7 +416,7 @@ WatchDirEvent* add_event_created_raw(WatchDirEventBuffer& events, char* filename
 	return add_event(events, evt);
 }
 
-WatchDirEvent* add_event_removed_raw(WatchDirEventBuffer& events, char* filename, int filenamelen)
+static WatchDirEvent* add_event_removed_raw(WatchDirEventBuffer& events, char* filename, int filenamelen)
 {
 	WatchDirEvent evt = {};
 	evt.existed = true;
@@ -414,7 +426,7 @@ WatchDirEvent* add_event_removed_raw(WatchDirEventBuffer& events, char* filename
 	return add_event(events, evt);
 }
 
-WatchDirEvent* add_event_modified_raw(WatchDirEventBuffer& events, char* filename, int filenamelen, bool existed = true)
+static WatchDirEvent* add_event_modified_raw(WatchDirEventBuffer& events, char* filename, int filenamelen, bool existed = true)
 {
 	WatchDirEvent evt = {};
 	evt.existed = existed;
@@ -424,7 +436,7 @@ WatchDirEvent* add_event_modified_raw(WatchDirEventBuffer& events, char* filenam
 	return add_event(events, evt);
 }
 
-WatchDirEvent create_event_renamed_old_raw(char* filename, int filenamelen)
+static WatchDirEvent create_event_renamed_old_raw(char* filename, int filenamelen)
 {
 	WatchDirEvent evt = {};
 	evt.existed = true;
@@ -433,7 +445,7 @@ WatchDirEvent create_event_renamed_old_raw(char* filename, int filenamelen)
 	return evt;
 }
 
-WatchDirEvent* add_event_renamed_raw(WatchDirEventBuffer& events, WatchDirEvent renamed_old, char* filename, int filenamelen)
+static WatchDirEvent* add_event_renamed_raw(WatchDirEventBuffer& events, WatchDirEvent renamed_old, char* filename, int filenamelen)
 {
 	WatchDirEvent evt = renamed_old;
 	evt.name = filename;
@@ -444,10 +456,10 @@ WatchDirEvent* add_event_renamed_raw(WatchDirEventBuffer& events, WatchDirEvent 
 
 #if SMART_EVENT_MERGING
 
-void add_event_created(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
-void add_event_removed(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
-void add_event_modified(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
-void add_event_renamed(WatchDirEventBuffer& events, WatchDirEvent rename_event, char* filename, int filenamelen, bool dup);
+static void add_event_created(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
+static void add_event_removed(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
+static void add_event_modified(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup);
+static void add_event_renamed(WatchDirEventBuffer& events, WatchDirEvent rename_event, char* filename, int filenamelen, bool dup);
 
 
 void add_event_created(WatchDirEventBuffer& events, char* filename, int filenamelen, bool dup)
@@ -765,7 +777,7 @@ void add_event_renamed(WatchDirEventBuffer& events, WatchDirEvent rename_event, 
 				assert(0);
 				*old_event = {};
 				remove_event(events, old_event);
-				free_event(rename_event);
+				watchdir_free_event(rename_event);
 				free(old.name);
 				free(old.old_name);
 			}
@@ -873,7 +885,7 @@ static bool parse_file_notify_informations(char* path, int path_size, FILE_NOTIF
 
 			case FILE_ACTION_RENAMED_OLD_NAME: {
 				TRACE("#< %s\n", filename);
-				free_event(renamed_old);
+				watchdir_free_event(renamed_old);
 				renamed_old = create_event_renamed_old(events, filename, filenamelen, true);
 			} break;
 
@@ -982,14 +994,27 @@ static bool read_changes(WatchDir& wd, int32_t i)
 }
 
 
-WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms)
+WatchDirEvent* watchdir_peek_next_event(WatchDir& wd)
+{
+	if (wd.events.start != wd.events.next)
+		return wd.events.data + wd.events.start;
+	return 0;
+}
+
+WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms, int32_t wait_result)
 {
 	for (;;)
 	{
 		if (WatchDirEvent* evt = go_to_next_event(wd.events))
+		{
+			if (wd.keep_old_events_data)
+				wd.events.last = -1; // Unset the last returned event, to prevent watchdir_free_event on next call.
 			return evt;
+		}
 
-		int32_t first_triggered = wait_for_event(wd, timeout_ms);
+		int32_t first_triggered = wait_result;
+		if (first_triggered < 0)
+			first_triggered = watchdir_wait_for_event(wd, timeout_ms);
 		if (first_triggered < 0)
 			return 0;
 
@@ -1006,7 +1031,7 @@ WatchDirEvent* watchdir_get_event(WatchDir& wd, uint32_t timeout_ms)
 			if (changes_found)
 			{
 				// Timeout after 10ms to see if there is something available right away or not.
-				first_triggered = wait_for_event(wd, 10);
+				first_triggered = watchdir_wait_for_event(wd, 10);
 				if (first_triggered >= 0)
 					continue;
 			}

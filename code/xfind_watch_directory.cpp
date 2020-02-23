@@ -69,8 +69,18 @@ WORK_QUEUE_CALLBACK(directory_watcher)
 }
 #endif
 
+volatile bool g_directory_listener_started = false;
+volatile bool g_directory_listener_stopping = false;
+volatile bool g_directory_listener_should_stop = false;
 void updateWatchedDirectories(State& state)
 {
+	if (g_directory_listener_started)
+	{
+		g_directory_listener_should_stop = true;
+		_WriteBarrier();
+		ReleaseSemaphore(state.wdSemaphore, 1, 0);
+		while (g_directory_listener_started) {}
+	}
 	watchdir_stop(state.wd);
 	if (state.searchPathExists && state.searchPaths && state.searchPathsSize > 0)
 	{
@@ -82,7 +92,9 @@ void updateWatchedDirectories(State& state)
 		}
 		state.watchPathsSize = state.searchPathsSize;
 
-		state.wd = watchdir_start(state.watchPaths, state.watchPathsSize);
+		state.wd = watchdir_start(state.watchPaths, state.watchPathsSize, state.wdSemaphore);
+		state.wd.keep_old_events_data = true;
+		ReleaseSemaphore(state.wdSemaphore, 1, 0);
 	}
 }
 

@@ -98,23 +98,19 @@ struct FileIndexEntry
 	b32 truncated = false;
 	b32 seenInIndex = false;
 	volatile b32 modifiedSinceLastSearch = false;
-	volatile u32 mutex = 0;
+	MutexRW mutex = {};
 };
 
 #define PATH_HASH_SIZE 4096
 struct FileIndex
 {
-	MemoryArena arena = {};
 	FileIndexEntry* firstFile = 0;
-	FileIndexEntry** onePastLastFile = 0;
-	FileIndexEntry* filePathHash[PATH_HASH_SIZE];
-	FileIndexEntry* firstRemovedFile = 0;
-	const u32 filePathHashSize = PATH_HASH_SIZE;
+	FileIndexEntry** filePathHash;
+	u32 filePathHashSize = PATH_HASH_SIZE;
 	volatile i32 filesSize = 0;
 	volatile b32 modifiedSinceLastSearch = false;
+	MutexRW mutex = {};
 };
-
-
 
 
 struct Match
@@ -139,6 +135,12 @@ struct MainSearchPatternData
 	struct State* state = 0;
 };
 
+struct EventListItem
+{
+	WatchDirEvent evt;
+	EventListItem* next;
+};
+
 struct State
 {
 	MemoryArena arena = {};
@@ -150,7 +152,9 @@ struct State
 	char** watchPaths = 0;
 	i32 watchPathsSize = 0;
 	WatchDir wd = {};
-	
+	HANDLE wdSemaphore = 0;
+	EventListItem* file_events_list = 0;
+
 	b32 running = true;
 
 	b32 setFocusToFolderInput = false;
@@ -169,6 +173,7 @@ struct State
 	String* searchPaths = 0;
 	b32 searchPathExists = 0;
 	i32 searchPathsSize = 0;
+	MutexRW searchPathsMutex = {};
 
 	i32 extensionsMaxSize = 1024;
 	String* extensions = 0;
@@ -202,6 +207,7 @@ internal volatile u64 searchTime = 0;
 #include "imgui_utils.cpp"
 #include "xfind_utils.cpp"
 #include "xfind_ui.cpp"
+#include "xfind_index.cpp"
 #include "xfind_worker_index.cpp"
 #include "xfind_worker_search.cpp"
 

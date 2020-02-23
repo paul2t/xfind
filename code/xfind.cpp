@@ -70,6 +70,7 @@ static void initState(State& state, Config iconfig)
 	if (state.config.fontFile.size <= 0)
 		state.config.fontFile = {};
 
+	state.index = createFileIndex();
 }
 
 static void drawMenuBar(ImGuiIO& io, State& state)
@@ -229,7 +230,7 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 				ImGui::Text("%s = column in the file to open", ARG_COL);
 				ImGui::Text("Make sure the path is contained withing quotes");
 				ImGui::Text("For Sublime Text, the arguments are : \"%s:%s:%s\"", ARG_PATH, ARG_LINE, ARG_COL);
-				ImGui::Text("You can hide this input in the options");
+				ImGui::Text("You can hide this input in the settings");
 				ImGui::Text("You can set some templates from the Help menu.");
 				ImGui::EndTooltip();
 			}
@@ -349,14 +350,24 @@ static void showAbout(b32& showAbout)
 	}
 }
 
+
+static void notifyIndexUpdate(State& state, WatchDirEvent* evt)
+{
+	state.needToGenerateIndex = true;
+}
+
+inline void freeEventListItem(EventListItem* item)
+{
+	watchdir_free_event(item->evt);
+	delete item;
+}
+
 static void watchDirectory(State& state)
 {
-	bool modified = false;
-	while (WatchDirEvent* evt = watchdir_get_event(state.wd, 0))
-		modified = true;
-	if (modified)
+	while (EventListItem* item = AtomicListPopFirst(state.file_events_list))
 	{
-		state.needToGenerateIndex = true;
+		notifyIndexUpdate(state, &item->evt);
+		freeEventListItem(item);
 	}
 }
 
@@ -403,8 +414,35 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 }
 
 
+static DWORD directory_listener(void* _data)
+{
+	State* state = (State*)_data;
+	assert(state->wdSemaphore != INVALID_HANDLE_VALUE);
+	if (state->wdSemaphore == INVALID_HANDLE_VALUE) return 1;
+	for (;;)
+	{
+		g_directory_listener_started = false;
+		WaitForSingleObject(state->wdSemaphore, INFINITE);
+		g_directory_listener_started = true;
+		g_directory_listener_should_stop = false;
 
-static volatile HWND g_window_handle;
+		int32_t wait_timeout = INFINITE;
+		while (WatchDirEvent* evt = watchdir_get_event(state->wd, wait_timeout))
+		{
+			if (g_directory_listener_should_stop)
+				wait_timeout = 0;
+
+			EventListItem* item = new EventListItem;
+			item->evt = *evt;
+
+			AtomicListInsert(state->file_events_list, item, item->next);
+
+			glfwPostEmptyEvent();
+		}
+	}
+}
+
+
 static volatile bool g_set_active_window;
 internal DWORD hot_key_listener(void* _data)
 {
@@ -418,10 +456,8 @@ internal DWORD hot_key_listener(void* _data)
 			{
 				printf("WM_HOTKEY received\n");
 				g_set_active_window = true;
-				WPARAM p = 0;
-				LPARAM l = 0;
 				_WriteBarrier();
-				SendMessageA(g_window_handle, WM_ERASEBKGND, p, l);
+				glfwPostEmptyEvent();
 			}
 		}
 	}
@@ -457,12 +493,17 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #endif
 
 	State state = {};
-	state.index.onePastLastFile = &state.index.firstFile; // This is because of an internal error in vs compiler.
 	Config iconfig = readConfig(state.arena);
+
+	// Start directory listener
+	{
+		state.wdSemaphore = CreateSemaphoreEx(0, 0, 1, 0, 0, SEMAPHORE_ALL_ACCESS);
+		HANDLE threadHandle = CreateThread(0, 0, directory_listener, &state, 0, 0);
+		CloseHandle(threadHandle);
+	}
 
 	WINDOW window = createAndInitWindow("xfind", iconfig.width, iconfig.height, iconfig.maximized);
 	if (!window) return 1;
-	g_window_handle = GetWindowRawPointer(window);
 
 #if OPENGL
 	GLFWimage icon[2] = { { 16, 16, xfind_16_map }, { 32, 32, xfind_32_map}, };
@@ -477,8 +518,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	initState(state, iconfig);
 
 	// Main loop
-    while (state.running)
-    {
+	while (state.running)
+	{
 		if (state.config.fontFile.size)
 			reloadFontIfNeeded(state.config.fontFile, state.config.fontSize);
 		else
