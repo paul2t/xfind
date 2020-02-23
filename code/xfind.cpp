@@ -365,7 +365,7 @@ static void showAbout(b32& showAbout)
 		ImGui::OpenPopup("About");
 	if (ImGui::BeginPopupModal("About", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("xfind alpha by paul2t");
+		ImGui::Text("xfind " XFIND_VERSION_STRING " by paul2t");
 		ImGui::Text("https://github.com/paul2t/xfind");
 		ImGui::BulletText("Using imgui and glfw");
 		ImGui::BulletText("Font: " DEFAULT_FONT_NAME);
@@ -536,7 +536,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		CloseHandle(threadHandle);
 	}
 
-	WINDOW window = createAndInitWindow("xfind", iconfig.width, iconfig.height, iconfig.maximized);
+	WINDOW window = createAndInitWindow(XFIND_APP_TITLE, iconfig.width, iconfig.height, iconfig.maximized);
 	if (!window) return 1;
 
 #if OPENGL

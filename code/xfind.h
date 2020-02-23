@@ -42,7 +42,9 @@ static ProgramString programStrings[] =
 	{ make_lit_string("GVim"), make_lit_string("gvim '+normal "ARG_LINE"G"ARG_COL"|' \""ARG_PATH"\""), true, },
 };
 
-
+#define XFIND_VERSION 0.5f
+#define XFIND_VERSION_STRING "alpha 0.5"
+#define XFIND_APP_TITLE "xfind " XFIND_VERSION_STRING
 
 
 #define DEFAULT_WINDOW_WIDTH 1280
