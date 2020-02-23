@@ -79,6 +79,56 @@ internal_function String readEntireFile(MemoryArena& arena, const char* filename
 	return result;
 }
 
+inline void advance_char(String& s)
+{
+	if (s.size > 0)
+	{
+		++s.str;
+		--s.size;
+		if (s.memory_size > 0)
+			--s.memory_size;
+	}
+}
+
+inline void advance_char(String& s, char c)
+{
+	if (s.size > 0 && s.str[0] == c)
+	{
+		++s.str;
+		--s.size;
+		if (s.memory_size > 0)
+			--s.memory_size;
+	}
+}
+
+inline String firstLine(String s)
+{
+	String line = {};
+	line.str = s.str;
+	line.memory_size = s.size;
+	while (line.size < line.memory_size && line.str[line.size] != '\r' && line.str[line.size] != '\n') ++line.size;
+	return line;
+}
+
+inline String nextLine(String prevline)
+{
+	if (prevline.memory_size <= prevline.size) return {};
+	String line = {};
+	line.str = prevline.str + prevline.size;
+	line.memory_size = prevline.memory_size - prevline.size;
+	line.size = 2;
+	if (line.memory_size < 2)
+		line.size = line.memory_size;
+	advance_char(line, '\r');
+	advance_char(line, '\n');
+	line.size = 0;
+
+	// Find the end of the line
+	while (line.size < line.memory_size && line.str[line.size] != '\r' && line.str[line.size] != '\n') ++line.size;
+
+	return line;
+}
+
 internal_function String* getLines(MemoryArena& arena, String content, i32& nbLines, bool skipWS = false, bool chopWS = false, bool nullTerminate = false)
 {
 	i32 lineCount = 1;
