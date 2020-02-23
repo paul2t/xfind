@@ -17,6 +17,8 @@
 
 #if 1
 
+#define DEBUG_IMGUI 0
+
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
 #include "xfind.h"
@@ -375,11 +377,15 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 {
 	ImGuiIO& io = g.IO;
 
+#if DEBUG_IMGUI
+	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
+#else
 	int framewidth, frameheight;
 	GetFramebufferSize(window, &framewidth, &frameheight);
 	ImGui::SetNextWindowSize(ImVec2((float)framewidth, (float)frameheight));
 	ImGui::SetNextWindowPos(ImVec2());
 	ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
+#endif
 
 	drawMenuBar(io, state);
 
@@ -393,6 +399,10 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 
 	ImGui::End();
 
+
+#if DEBUG_IMGUI
+	ImGui::ShowMetricsWindow();
+#endif
 
 	// Save params if something has been changed or we are closing the application.
 	if (inputModified || !state.running)
