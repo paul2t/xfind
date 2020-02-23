@@ -11,7 +11,7 @@ If first lists the files matching your string by name.
 It then shows the matching lines.  
 The search is case insensitive.  
 
-![Example search](https://user-images.githubusercontent.com/1074956/50818370-0e88a800-1327-11e9-9f9c-afa1dc162e16.png)
+![Example search](https://user-images.githubusercontent.com/1074956/75120786-841c1880-568e-11ea-89f6-bffdd41ea82c.png)
 
 You can select a line with up/down arrows. Also page up/down.  
 Then press enter or double click on a line to open the corresponding file using the specified command line.  
@@ -33,9 +33,9 @@ There is absolutely no optimization done yet.
 
 Only works on Windows (for now).  
 
-Options
+Settings
 ===
-![options](https://user-images.githubusercontent.com/1074956/50818258-c1a4d180-1326-11e9-8192-23e7206c4949.png)
+![settings](https://user-images.githubusercontent.com/1074956/75120864-23d9a680-568f-11ea-9f54-6b6e6fcd5e22.png)
 
 Change the font size.  
 The font can only be changed in the xfind.ini file. Which is generated after launching the program for the first time.  
@@ -44,6 +44,9 @@ Show/Hide the inputs for folders and extensions.
 Show relative/full paths  
 Search hidden files/folders  
 Search/Ignore the file names. If disabled, it will only show matching lines. If enabled, it will show both the matching file names and lines. Matching file names are always shown before the lines.  
+Enable case sensitive search  
+Enable/disable the context lines  
+Change the number of context lines  
 
 Todo
 ===
@@ -52,12 +55,12 @@ Search history
 Paths history  
 Extensions history  
 Faster search function (see https://en.wikipedia.org/wiki/String-searching_algorithm)  
-Look for text in : docx, pptx, odt, odp, pdf, ...
-Regex
+Look for text in : docx, pptx, odt, odp, pdf, ...  
+Regex  
 
 Compiling xfind
 ===
 You can compile xfind using the `build.bat` (after setting the cl environment).  
 To set the environment, it depends on your version of visual studio:  
-For visual studio 2017 community: `"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"`  
+You can use `initcl.bat` available here : https://raw.githubusercontent.com/paul2t/initcl/master/initcl.bat  
 After that, you can launch `build.bat` in the same console.  
