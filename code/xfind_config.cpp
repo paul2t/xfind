@@ -54,6 +54,14 @@ Config readConfig(MemoryArena& arena)
 				if (match(conf.fontFile, make_lit_string(DEFAULT_FONT_NAME)))
 					conf.fontFile.size = 0;
 			}
+			String ctxLinesK = make_lit_string("context_lines=");
+			if (match_part(line, ctxLinesK))
+			{
+				char* end;
+				conf.contextLines = fastStringToU32(line.str + ctxLinesK.size, end);
+			}
+			if (match(line, make_lit_string("hide_context_lines")))
+				conf.hideContextLines = true;
 			if (match(line, make_lit_string("hide_program")))
 				conf.showProgram = false;
 			if (match(line, make_lit_string("hide_folder_and_ext")))
@@ -86,6 +94,7 @@ Config readConfig(MemoryArena& arena)
 
 void writeConfig(Config conf)
 {
+	Config defaultConf = {};
 	FILE* configFile = fopen(CONFIG_FILE_NAME, "w");
 	if (configFile)
 	{
@@ -108,6 +117,11 @@ void writeConfig(Config conf)
 			fprintf(configFile, "no_file_name_search\n");
 		if (conf.caseSensitive)
 			fprintf(configFile, "case_sensitive\n");
+		if (conf.contextLines != defaultConf.contextLines)
+			fprintf(configFile, "context_lines=%d\n", conf.contextLines);
+		if (conf.hideContextLines)
+			fprintf(configFile, "hide_context_lines\n");
+
 
 		for (int ki = 0; ki < ArrayCount(configKeys); ++ki)
 		{

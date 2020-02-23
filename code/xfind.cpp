@@ -110,6 +110,27 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 				state.needToSearchAgain = true;
 			if (ImGui::Checkbox("Case sensitive", &state.config.caseSensitive))
 				state.needToSearchAgain = true;
+
+			ImGui::DragInt("Ctx lines", &state.config.contextLines, 0.05f, 0, 10);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::Text("The number of lines to show before and after the selected/hovered line.");
+				ImGui::Text("Press F4 to hide/show.");
+				ImGui::EndTooltip();
+			}
+
+			bool showContextLines = !state.config.hideContextLines;
+			if (ImGui::Checkbox("Show context lines", &showContextLines))
+				state.config.hideContextLines = !showContextLines;
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::Text("Show lines above and below the selected/hovered line.");
+				ImGui::Text("Press F4 to toggle.");
+				ImGui::EndTooltip();
+			}
+
 			ImGui::EndMenu();
 		}
 
@@ -169,6 +190,9 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 {
 	b32 inputModified = false;
 	b32 searchModified = false;
+
+	if (ImGui::IsKeyPressed(GLFW_KEY_F4, false))
+		state.config.hideContextLines = !state.config.hideContextLines;
 
 	// Keep focus on search input field
 	if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter), false) || ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))

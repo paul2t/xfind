@@ -144,6 +144,55 @@ bool CubicUpdateFixedDuration1(float *P0, float *V0, float P1, float V1, float D
 	return(Result);
 }
 
+String getLineWithContext(String line, String content, int numberOfContextLines, int& nbLines)
+{
+	nbLines = 1;
+	char* at = line.str;
+	if (numberOfContextLines > 0)
+	{
+		int context = numberOfContextLines;
+		while (at >= content.str)
+		{
+			if (*at == '\n')
+			{
+				context--;
+				if (context < 0)
+				{
+					++at;
+					break;
+				}
+				++nbLines;
+			}
+			--at;
+		}
+		// To handle when first line is a '\n'
+		if (at < content.str)
+			at = content.str;
+	}
+
+	int context = numberOfContextLines;
+	char* limit = line.str + line.size;
+	while (limit < content.str + content.size)
+	{
+		if (*limit == '\n')
+		{
+			--context;
+			if (context < 0)
+			{
+				if (limit[-1] == '\r') --limit;
+				break;
+			}
+			++nbLines;
+		}
+		++limit;
+	}
+
+	String ctx = {};
+	ctx.str = at;
+	ctx.size = (int)(limit - at);
+
+	return ctx;
+}
 
 float scroll_time = 0;
 float scroll_dy;
@@ -202,48 +251,36 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 
 
 	float h = ImGui::GetTextLineHeightWithSpacing();
-	float s = h - ImGui::GetTextLineHeight();
+	float lh = ImGui::GetTextLineHeight();
+	float s = h - lh;
+	float lhInv = 1.0f;
+	if (h) lhInv = 1.0f / (int)h;
 	ImVec2 avail = ImGui::GetContentRegionAvail();
 
-	ImVec2 mouse = ImGui::GetMousePos() - ImGui::GetCursorScreenPos();
-	float hoverIndexF = mouse.y / h;
+	ImVec2 window_start_pos = ImGui::GetCursorScreenPos();
+	ImVec2 mouse_pos = ImGui::GetMousePos();
+	ImVec2 mouse = mouse_pos - window_start_pos;
+	ImVec2 voffset = ImVec2(0, -s/2);
+
+	//int hoverIndex = -1;
+	//float ly = (float)(int)window_start_pos.y;
+	//while (mouse_pos.y > ly)
+	//{
+		//ly += (float)(int)h;
+	//}
+
+	float hoverIndexF = mouse.y * lhInv;
 	int hoverIndex = -1;
-	if (hoverIndexF >= 0)
-		hoverIndex = (int)hoverIndexF;
-	if (hoverIndex >= resultsSize)
-		hoverIndex = -1;
-	if (mouse.x > avail.x)
-		hoverIndex = -1;
 
-	if (!ImGui::IsWindowHovered())
-		hoverIndex = -1;
+	ImGuiContext* g = ImGui::GetCurrentContext();
+	bool isWindowHovered = ImGui::IsWindowHovered();
+	bool isWindowHoverable = IsWindowContentHoverable(ImGui::GetCurrentWindowRead(), 0);
+	//isWindowHovered = ImGui::IsWindowHovered(ImGuiFocusedFlags_RootAndChildWindows);
 
-	//ImGui::BeginTooltip();
-	//ImGui::Text("%f / %f : %f %d", mouse.x, mouse.y, hoverIndexF, hoverIndex);
-	//ImGui::Text("%f -> %f", selectedLine*h, (selectedLine + 1)*h);
-	//ImGui::Text("%f %f", diffDown, diffUp);
-	//ImGui::EndTooltip();
-
-
-	if (hoverIndex >= 0)
-	{
-		if (ImGui::IsMouseClicked(0))
-		{
-			selectedLine = hoverIndex;
-			state.setFocusToSearchInput = true;
-		}
-		if (ImGui::IsMouseDoubleClicked(0))
-		{
-			Match match = results[hoverIndex];
-			execOpenFile(state.config.tool, match.file->path, match.lineIndex, match.offset_in_line + 1);
-			//Sleep(10);
-			//SetForegroundWindow(glfwGetWin32Window(window));
-		}
-	}
+	i32 contextLines = state.config.contextLines;
 
 	for (i32 ri = 0; ri < resultsSize && ri < resultsSizeLimit; ++ri)
 	{
-		bool highlighted = (ri == selectedLine);
 		Match match = results[ri];
 		FileIndexEntry fileindex = *match.file;
 		String filename = state.config.showRelativePaths ? fileindex.relpath : fileindex.path;
@@ -251,10 +288,33 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 		float scrollMax = ImGui::GetScrollMaxY();
 		float scroll = ImGui::GetScrollY();
 
-		ImVec2 lineStart = ImGui::GetCursorScreenPos() + ImVec2(0, -s / 2);
+		ImVec2 lineStart = ImGui::GetCursorScreenPos() + voffset;
 		ImVec2 lineEnd = lineStart + ImVec2(avail.x, h);
+		// NOTE: Because this is done in ImGui::ItemSize, otherwise we will have several items highlighted at the same time.
+		// Even though we prevent this by testing that hoverIndex is not set.
+		lineEnd.y = (float)(int)lineEnd.y;
+		if (isWindowHovered && hoverIndex < 0 && lineStart.y <= mouse_pos.y && mouse_pos.y < lineEnd.y)
+		{
+			hoverIndex = ri;
 
-		if (highlighted)
+			if (ImGui::IsMouseClicked(0))
+			{
+				selectedLine = hoverIndex;
+				state.setFocusToSearchInput = true;
+			}
+
+			if (ImGui::IsMouseDoubleClicked(0))
+			{
+				execOpenFile(state.config.tool, match.file->path, match.lineIndex, match.offset_in_line + 1);
+				//Sleep(10);
+				//SetForegroundWindow(glfwGetWin32Window(window));
+			}
+
+		}
+
+		bool selected = (ri == selectedLine);
+
+		if (selected)
 		{
 			ImGui::GetWindowDrawList()->AddRectFilled(lineStart, lineEnd, highlightColor);
 
@@ -282,6 +342,13 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 			ImGui::GetWindowDrawList()->AddRectFilled(lineStart, lineEnd, ImColor(.2f, .2f, .2f));
 		}
 
+		if (!IsCurrentLineOnScreen())
+		{
+			ImGui::NewLine();
+			continue;
+		}
+
+
 		if (results[ri].lineIndex > 0)
 		{
 			ImGui::TextColored(filenameColor, "%.*s", strexp(filename));
@@ -289,12 +356,68 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 			ImGui::TextColored(filenameColor, "(%d:%d): ", match.lineIndex, match.offset_in_line);
 
 			showHighlightedText(match.line, match.offset_in_line, match.matching_length, true);
+
+			if ((isWindowHoverable) && (!state.config.hideContextLines && contextLines > 0) && (ri == hoverIndex || (hoverIndex < 0 && selected)))
+			{
+				int nbLines = 0;
+				String ctx = getLineWithContext(match.line, match.file->content, contextLines, nbLines);
+
+				ImGuiWindow* window = ImGui::GetCurrentWindowRead();
+
+				//ImVec2 tooltip_pos = WindowToScreenPosition(ImVec2(lineStart.x, lineEnd.y));
+				//if (!IsLineOnScreen(tooltip_pos.y + nbLines * h))
+					//tooltip_pos.y = lineStart.y - (nbLines + 1.5f) * h;
+
+				//tooltip_pos = ScreenToWindowPosition(tooltip_pos);
+				//ImVec2 tooltip_pos = ImVec2(lineStart.x, lineEnd.y);
+				//float y = lineEnd.y;
+				float y = (float)(int)(lineStart.y - (nbLines * (float)(int)h) - 2*voffset.y - 2*g->Style.PopupBorderSize - 2*g->Style.WindowPadding.y);
+				if (!IsLineOnScreen(y - ImGui::GetWindowPos().y))
+					y = lineEnd.y;
+				ImVec2 tooltip_pos = ImVec2(lineStart.x, y);
+
+				//f32 fpadding = g->Style.FramePadding.y;
+				//ImVec2 region_max = window->ContentsRegionRect.Max + window->Scroll;
+				//if (y + nbLines * h + 2 * fpadding >= region_max.y)
+					//y = lineStart.y - (nbLines + 1.5f) * h;
+
+				//ImVec2 tooltip_pos = g.IO.MousePos + ImVec2(16 * g.Style.MouseCursorScale, 8 * g.Style.MouseCursorScale);
+				ImGui::SetNextWindowPos(tooltip_pos);
+				ImGui::SetNextWindowBgAlpha(g->Style.Colors[ImGuiCol_PopupBg].w);
+				ImGui::BeginTooltipEx(0, true);
+				//ImGui::BeginTooltip();
+
+				int printedLines = 0;
+				String line = firstLine(ctx);
+				while (line.str)
+				{
+					++printedLines;
+					if (match.line.str >= line.str && match.line.str < line.str + line.size)
+						showHighlightedText(line, match.offset_in_line, match.matching_length);
+					else
+						ImGui::Text("%.*s\n", strexp(line));
+					line = nextLine(line);
+				}
+				if (printedLines != nbLines)
+				{
+					int breakhere = 1;
+				}
+				//ImGui::Text("%.*s", strexp(ctx));
+				ImGui::EndTooltip();
+			}
 		}
 		else
 		{
 			showHighlightedText(filename, match.offset_in_line + (state.config.showRelativePaths ? 0 : (fileindex.path.size - fileindex.relpath.size)), match.matching_length);
 		}
+
 	}
+
+	//ImGui::BeginTooltip();
+	//ImGui::Text("%f / %f : %f %d", mouse.x, mouse.y, hoverIndexF, hoverIndex);
+	//ImGui::Text("%f -> %f", selectedLine*h, (selectedLine + 1)*h);
+	////ImGui::Text("%f %f", diffDown, diffUp);
+	//ImGui::EndTooltip();
 
 	if (resultsSize >= resultsSizeLimit)
 	{

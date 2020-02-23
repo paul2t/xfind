@@ -72,6 +72,8 @@ struct Config
 	bool caseSensitive = false;
 	float fontSize = 20.0f;
 	String fontFile;
+	i32 contextLines = 4;
+	bool hideContextLines = false;
 
 
 	String path; // Should be first String ! (same order as configKeys)
