@@ -1,5 +1,9 @@
 @echo off
 
+::pushd ..\build
+::cl /nologo /O2 /W4 /I..\code -DAPP_WIN32 ..\code\directory_listener.cpp
+::popd
+
 set program=xfind
 
 set DX12=0 :: not working

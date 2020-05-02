@@ -151,9 +151,7 @@ struct _WatchDir
 void watchdir_free_event(WatchDirEvent& evt)
 {
 	if (evt.name) free(evt.name);
-	int breakhere = 1;
 	if (evt.old_name) free(evt.old_name);
-	int breakhere2 = 1;
 	evt = {};
 }
 
@@ -352,7 +350,7 @@ inline WatchDirEvent* find_last_event_named(WatchDirEventBuffer events, char* fi
 
 inline WatchDirEvent* get_last_event(WatchDirEventBuffer events)
 {
-	return find_last_event(events, [](auto* evt) { return true; });
+	return find_last_event(events, [](auto*) { return true; });
 }
 
 static WatchDirEvent* get_next_event(WatchDirEventBuffer& events)
@@ -873,8 +871,6 @@ static bool parse_file_notify_informations(char* path, int path_size, FILE_NOTIF
 			} break;
 
 			case FILE_ACTION_MODIFIED: {
-				//sprintf(pathbuff, "%s\\%s", path, filename);
-
 				// Ignore modifications of folders.
 				DWORD dwAttrib = GetFileAttributesA(filename);
 				if (dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY))
@@ -972,7 +968,7 @@ static bool read_changes(WatchDir& wd, int32_t i)
 
 	// Setup the new directory changes waiting object
 	DWORD nRet;
-	BOOL succeeded = ReadDirectoryChangesW(
+	ReadDirectoryChangesW(
 		dir.hdir, // handle to the directory to be watched
 		wd.result[i], // pointer to the buffer to receive the read results
 		wd.result_buffers_size, // length of lpBuffer

@@ -15,7 +15,6 @@
 // open folder : GetOpenFileNameA(OPENFILENAMEA*)
 // let user create different search config presets (folders + extensions) : to easily switch between several presets
 
-#if 1
 
 #define DEBUG_IMGUI 0
 
@@ -589,92 +588,4 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 	imguiCleanup(window);
     return 0;
 }
-
-#endif
-
-
-#if 0
-#include "watch_directory.h"
-int main()
-{
-	char* paths[] =
-	{
-		//"C:\\",
-		"C:\\work\\xfind",
-		// "C:\\work\\xfind\\build\\",
-		//"C:\\work\\xfind\\data\\folder\\bin",
-		//"C:\\work\\xfind\\data\\folder\\src",
-	};
-	//watchDirectory(paths, sizeof(paths)/sizeof(*paths));
-	WatchDir wd = watchdir_start(paths, sizeof(paths) / sizeof(*paths));
-	for (;;)
-	{
-		WatchDirEvent* evt = watchdir_get_event(wd);
-		assert(evt);
-		if (!evt) continue;
-
-		assert(evt->name && evt->name_size);
-		assert(!(evt->created && evt->deleted));
-		assert(!(evt->created && evt->modified));
-		assert(!(evt->created && (evt->old_name_size > 0)));
-		assert(!(evt->deleted && evt->modified));
-		assert(!(evt->deleted && (evt->old_name_size > 0)));
-
-#if DEBUG_WD
-		printf("=");
-#endif
-
-		if (evt->created)
-			printf("+ ");
-		else if (evt->deleted)
-			printf("- ");
-		else if (evt->modified)
-			printf("~ ");
-		else if (evt->existed && evt->old_name_size)
-			printf("  ");
-		else
-		{
-			assert(0);
-			continue;
-		}
-
-		if (evt->old_name_size)
-			printf(" %s -> %s", evt->old_name, evt->name);
-		else
-			printf(" %s", evt->name);
-
-		printf("\n");
-#if DEBUG_WD
-		printf("\n");
-#endif
-
-		printf("Max size reached: %d\n", wd.events.max_size_reached);
-		printf("remaining allocations: %d\n", allocations);
-		if (0 == strcmp(evt->name, "C:\\work\\xfind\\abcdef.txt"))
-			break;
-
-	}
-
-	printf("stop\n");
-	watchdir_stop(wd);
-
-	bool leaking = false;
-	for (auto&& a : allocs)
-	{
-		if (a.second != "")
-		{
-			fprintf(stderr, "leaking %s\n", a.second.c_str());
-			leaking = true;
-		}
-	}
-	assert(!leaking);
-
-	printf("Max size reached: %d\n", wd.events.max_size_reached);
-	printf("remaining allocations: %d\n", allocations);
-
-	return 1;
-}
-
-#endif
-
 
