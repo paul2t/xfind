@@ -26,6 +26,7 @@
 
 static void initState(State& state, Config iconfig)
 {
+	TIMED_FUNCTION();
 	state.config = iconfig;
 	state.config.path = pushNewString(state.arena, 1024);
 	copy(&state.config.path, iconfig.path);
@@ -76,6 +77,7 @@ static void initState(State& state, Config iconfig)
 
 static void drawMenuBar(ImGuiIO& io, State& state)
 {
+	TIMED_FUNCTION();
 	state.showAbout = false;
 
 	// Draw menu bar
@@ -187,6 +189,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 
 static b32 handleInputs(ImGuiIO& io, State& state)
 {
+	TIMED_FUNCTION();
 	b32 inputModified = false;
 	b32 searchModified = false;
 
@@ -353,6 +356,7 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 
 static void drawResults(State& state)
 {
+	TIMED_FUNCTION();
 	ImGui::BeginChild("Results");
 	showResults(state, state.results, state.resultsSize, state.resultsMaxSize, &state.index, state.selectedLine);
 	ImGui::EndChild();
@@ -383,12 +387,14 @@ static void notifyIndexUpdate(State& state, WatchDirEvent* evt)
 
 inline void freeEventListItem(EventListItem* item)
 {
+	TIMED_FUNCTION();
 	watchdir_free_event(item->evt);
 	delete item;
 }
 
 static void watchDirectory(State& state)
 {
+	TIMED_FUNCTION();
 	while (EventListItem* item = AtomicListPopFirst(state.file_events_list))
 	{
 		notifyIndexUpdate(state, &item->evt);
@@ -398,6 +404,7 @@ static void watchDirectory(State& state)
 
 static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 {
+	TIMED_FUNCTION();
 	ImGuiIO& io = g.IO;
 
 #if DEBUG_IMGUI
@@ -550,9 +557,16 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	initState(state, iconfig);
 
+	MUTE_PROFILE();
+
 	// Main loop
 	while (state.running)
 	{
+		//DEBUG_EVENT(ProfileType_FrameMarker, "FrameMarker");
+
+		u64 ticks_start = getTickCount();
+		TIMED_BLOCK_BEGIN("MainLoop");
+
 		if (state.config.fontFile.size)
 			reloadFontIfNeeded(state.config.fontFile, state.config.fontSize);
 		else
@@ -566,6 +580,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		
 		if (g_set_active_window)
 		{
+			TIMED_BLOCK("g_set_active_window");
 			int iconified = glfwGetWindowAttrib(window, GLFW_ICONIFIED);
 			if (iconified)
 				glfwRestoreWindow(window);
@@ -583,6 +598,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 
 		imguiEndFrame(window);
+
+		TIMED_BLOCK_END("MainLoop");
+		u64 ticks_end = getTickCount();
+		if (isActiveWindow && ((ticks_end - ticks_start) / 1000 > 33))
+		{
+			printProfile(&mainProfileState, true);
+			int breakhere = 1;
+		}
+		resetProfileState();
     }
 
 	imguiCleanup(window);

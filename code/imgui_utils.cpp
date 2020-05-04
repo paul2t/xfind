@@ -505,6 +505,7 @@ static WINDOW createAndInitWindow(const char* name, int width, int height, b32 m
 
 static void reloadFontIfNeeded(void* data, int dataSize, float& fontSize)
 {
+	TIMED_FUNCTION();
 	if (fontSize != ImGui::GetFontSize())
 	{
 #if OPENGL
@@ -542,12 +543,19 @@ static void reloadFontIfNeeded(String fontFile, float& fontSize)
 
 static void readInputs(WINDOW window, b32& running, b32& shouldWaitForEvent, b32 isActiveWindow = true)
 {
+	TIMED_FUNCTION();
 #if OPENGL
 
 	if (shouldWaitForEvent && !isActiveWindow)
+	{
+		TIMED_BLOCK("glfwWaitEvents");
 		glfwWaitEvents();
+	}
 	else
+	{
+		TIMED_BLOCK("glfwPollEvents");
 		glfwPollEvents();
+	}
 	running = glfwWindowShouldClose(window) == 0;
 
 #elif DX12
@@ -603,19 +611,36 @@ static void imguiBeginFrame()
 
 static void imguiEndFrame(WINDOW window)
 {
+	TIMED_FUNCTION();
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
 
 #if OPENGL
+	TIMED_BLOCK_BEGIN("ImGui::Render");
 	ImGui::Render();
+	TIMED_BLOCK_END("ImGui::Render");
+
 	int display_w, display_h;
+	TIMED_BLOCK_BEGIN("glfwGetFramebufferSize");
 	glfwGetFramebufferSize(window, &display_w, &display_h);
+	TIMED_BLOCK_END("glfwGetFramebufferSize");
+
+	TIMED_BLOCK_BEGIN("glClear");
 	glViewport(0, 0, display_w, display_h);
 	glClearColor(0, 0, 0, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
-	ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+	TIMED_BLOCK_END("glClear");
 
+	TIMED_BLOCK_BEGIN("ImGui_ImplOpenGL2_RenderDrawData");
+	ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+	TIMED_BLOCK_END("ImGui_ImplOpenGL2_RenderDrawData");
+
+	TIMED_BLOCK_BEGIN("glfwMakeContextCurrent");
 	glfwMakeContextCurrent(window);
+	TIMED_BLOCK_END("glfwMakeContextCurrent");
+
+	TIMED_BLOCK_BEGIN("glfwSwapBuffers");
 	glfwSwapBuffers(window);
+	TIMED_BLOCK_END("glfwSwapBuffers");
 
 #elif DX12
 

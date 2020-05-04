@@ -18,6 +18,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 {
 	if (workerSearchPatternShouldStop)
 		return;
+	// not thread safe TIMED_FUNCTION();
 
 	WorkerSearchData* wdata = (WorkerSearchData*)data;
 	b32 trackLineIndex = wdata->trackLineIndex;
@@ -173,6 +174,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 {
 	if (workerSearchPatternShouldStop)
 		return;
+	// Not thread safe TIMED_FUNCTION();
 
 	MainSearchPatternData* wdata = (MainSearchPatternData*)data;
 	String pattern = wdata->pattern;
@@ -255,24 +257,19 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 
 internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* state, WorkQueue* queue, Match* results, volatile i32* resultsSize, u32 resultsMaxSize, FileIndex* fileIndex, String pattern)
 {
+	TIMED_FUNCTION();
 #if APP_INTERNAL
 	searchTimeStart = GetTickCount64();
 #endif
 
 	{
-		//u64 ticksStart = getTickCount();
 		// Ensure that the index has been loaded. And force the old search to abort.
 		cleanWorkQueue(queue, &workerSearchPatternShouldStop);
 		*resultsSize = 0;
-		//u64 ticksEnd = getTickCount();
-		//printf("%llums to finish the search queue\n", ticksEnd - ticksStart);
 	}
 
 	if (pattern.size > 0)
 	{
-
-		//u64 ticksStart = getTickCount();
-
 		searchData->fileIndex = fileIndex;
 		searchData->pattern = pattern;
 		searchData->results = results;
@@ -282,8 +279,5 @@ internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* 
 
 		searchInProgress = 1;
 		addEntryToWorkQueue(queue, mainWorkerSearchPattern, searchData);
-
-		//u64 ticksEnd = getTickCount();
-		//printf("%llums to launch the search\n", ticksEnd - ticksStart);
 	}
 }

@@ -454,26 +454,158 @@ inline void AtomicListInsert(T*& list, T* element, T*&next)
 
 #if APP_INTERNAL
 
-inline u64 getTickCount()
+
+
+
+enum ProfileType
 {
-	return GetTickCount64();
+    ProfileType_Unknown,
+
+    ProfileType_FrameMarker,
+    ProfileType_BlockBegin,
+    ProfileType_BlockEnd,
+
+    ProfileType_NoMoreProfileEvent,
+};
+
+struct ProfileEvent
+{
+    u64 clock;
+    char* name;
+    char* file;
+    int line;
+    u32 count;
+    u8 type;
+};
+
+struct ProfileState
+{
+    u32 maxEventCount;
+    u32 eventCount;
+    ProfileEvent* events;
+    MemoryArena profileArena;
+    FILE* output = stdout;
+    FILE* dump = 0;
+    u64 startTime;
+    u64 lastPrintTime;
+    i32 depth;
+};
+
+extern thread_local ProfileState mainProfileState;
+
+#define DEBUG_EVENT(type, name, ...) recordProfileEvent(&mainProfileState, __FILE__, __LINE__, type, name, ##__VA_ARGS__)
+#define TIMED_BLOCK_BEGIN(name) DEBUG_EVENT(ProfileType_BlockBegin, name)
+#define TIMED_BLOCK_END(name, ...) DEBUG_EVENT(ProfileType_BlockEnd, name, ##__VA_ARGS__)
+#define TIMED_BLOCK_END_WITH_PROFILE(name, ...) DEBUG_EVENT(ProfileType_BlockEnd, name, 1, true, ##__VA_ARGS__)
+#define TIMED_BLOCK(name, ...) TimedBlock CONCAT(_timed_block_, __COUNTER__)(&mainProfileState, name, __FILE__, __LINE__, ##__VA_ARGS__)
+#define TIMED_BLOCK_WITH_PROFILE(name, ...) TIMED_BLOCK(name, 1, true, ##__VA_ARGS__)
+#define TIMED_FUNCTION(...) TIMED_BLOCK(__FUNCTION__, ##__VA_ARGS__)
+#define TIMED_FUNCTION_WITH_PROFILE(...) TIMED_BLOCK_WITH_PROFILE(__FUNCTION__, ##__VA_ARGS__)
+// NOTE(xf4): You can do : TIMED_BLOCK/TIMED_FUNCTION(count, showProfile, output);
+
+#define MUTE_PROFILE() TIMED_BLOCK("MUTE_PROFILE", 1, false, true)
+
+
+void recordProfileEvent(ProfileState* profileState, char* file, int line, ProfileType type, char* name, u32 count = 1, bool showProfile = false, bool muteProfile = false, FILE* output = 0);
+
+void printProfile(ProfileState* profileState = &mainProfileState, bool mergeLastBlock = false, FILE* output = 0, bool muteProfile = false);
+
+inline void resetProfileState(ProfileState* profileState = &mainProfileState)
+{
+    profileState->eventCount = 0;
 }
 
-#define MEMSTR_FORMAT "%.1lf "
-char* memstr[5] =
+
+
+
+struct TimedBlock
 {
-    MEMSTR_FORMAT "octets",
-    MEMSTR_FORMAT "Ko",
-    MEMSTR_FORMAT "Mo",
-    MEMSTR_FORMAT "Go",
-    MEMSTR_FORMAT "To",
+    ProfileState* profileState = 0;
+    char* name = 0;
+    char* file = 0;
+    int line = 0;
+    int count = 0;
+    bool show_profile = false;
+    bool mute_profile = false;
+
+    inline TimedBlock(ProfileState* profileState, char* name, char* file, int line, int count = 1, bool show_profile = false, bool mute_profile = false) :
+        profileState(profileState), name(name), count(count), file(file), line(line), show_profile(show_profile), mute_profile(mute_profile)
+    {
+        if (!profileState || !profileState->maxEventCount) return;
+        if (profileState->eventCount == 0)
+            this->show_profile = true;
+        recordProfileEvent(profileState, file, line, ProfileType_BlockBegin, name);
+    }
+    inline ~TimedBlock()
+    {
+        if (!profileState || !profileState->maxEventCount) return;
+        recordProfileEvent(profileState, file, line, ProfileType_BlockEnd, name, count, show_profile, mute_profile);
+    }
 };
+
+
+
+inline u64 getTicksPerSecond()
+{
+    LARGE_INTEGER freq;
+    QueryPerformanceFrequency(&freq);
+    u64 result = freq.QuadPart;
+    return result;
+}
+static u64 qpcTicksPerSecond = getTicksPerSecond();
+inline u64 getTickCount()
+{
+    LARGE_INTEGER time = {};
+    QueryPerformanceCounter(&time);
+    u64 result = time.QuadPart;
+    result *= 1000000;
+    result /= qpcTicksPerSecond;
+    return result;
+}
+
+
+#define MEMSTR_FORMAT "%.1lf "
+#define CYSTR_FORMAT "%6.2lf "
+
+
+static char* memstr[] =
+{
+    MEMSTR_FORMAT " B", // Bytes
+    MEMSTR_FORMAT "KB", // Kilobytes
+    MEMSTR_FORMAT "MB", // Megabytes
+    MEMSTR_FORMAT "GB", // Gigabytes
+    MEMSTR_FORMAT "TB", // Terabytes
+    MEMSTR_FORMAT "PB", // Petabytes
+    MEMSTR_FORMAT "EB", // Exabytes
+    MEMSTR_FORMAT "ZB", // Zettabytes
+    MEMSTR_FORMAT "YB", // Yottabytes
+    MEMSTR_FORMAT "XB", // Xenottabytes
+    MEMSTR_FORMAT "SB", // Shilentnobytes
+    MEMSTR_FORMAT "DB", // Domegemegrottebytes
+};
+
+static char* cystr[] =
+{
+    CYSTR_FORMAT " cy",
+    CYSTR_FORMAT "Kcy",
+    CYSTR_FORMAT "Mcy",
+    CYSTR_FORMAT "Gcy",
+    CYSTR_FORMAT "Tcy",
+    CYSTR_FORMAT "Pcy",
+    CYSTR_FORMAT "Ecy",
+    CYSTR_FORMAT "Zcy",
+    CYSTR_FORMAT "Ycy",
+    CYSTR_FORMAT "Xcy",
+    CYSTR_FORMAT "Scy",
+    CYSTR_FORMAT "Dcy",
+};
+
 
 internal_function char* memToStr(umm size, char* buffer)
 {
     int pwr10 = 0;
     double result = (double)size;
-    while (result > 1024.0)
+    while (result >= 1024.0)
     {
         result /= 1024;
         ++pwr10;
@@ -482,23 +614,11 @@ internal_function char* memToStr(umm size, char* buffer)
     return buffer;
 }
 
-#define CYSTR_FORMAT "%6.2lf "
-char* cystr[7] =
-{
-    CYSTR_FORMAT " cy",
-    CYSTR_FORMAT "Kcy",
-    CYSTR_FORMAT "Mcy",
-    CYSTR_FORMAT "Gcy",
-    CYSTR_FORMAT "Tcy",
-    CYSTR_FORMAT "Ecy",
-    CYSTR_FORMAT "Pcy",
-};
-
 internal_function char* cyToStr(umm size, char* buffer)
 {
     int pwr10 = 0;
     double result = (double)size;
-    while (result > 1000.0)
+    while (result >= 1000.0)
     {
         result /= 1000;
         ++pwr10;
@@ -507,73 +627,150 @@ internal_function char* cyToStr(umm size, char* buffer)
     return buffer;
 }
 
-#define printMemUsage(arena, ...) _printMemUsage(arena, #arena, __VA_ARGS__)
-internal_function void _printMemUsage(MemoryArena& arena, char* name, FILE* output = stderr)
+internal_function char* microsecondsToStr(u64 microseconds, char* buffer)
 {
-    char memBuff[256];
-    fprintf(output, "memusage (%s): %s\n", name, memToStr(getMemoryUsage(arena), memBuff));
+    if (microseconds < 1000)
+    {
+        sprintf(buffer, "   %3d us", (int)microseconds);
+    }
+    else if (microseconds < 10000)
+    {
+        f32 fms = ((f32)microseconds) / 1000;
+        sprintf(buffer, "   %2.1f ms", fms);
+    }
+    else
+    {
+        u64 milliseconds = microseconds / 1000;
+        if (milliseconds < 1000)
+        {
+            sprintf(buffer, "   %3d ms", (int)milliseconds);
+        }
+        else
+        {
+            u64 seconds = milliseconds / 1000;
+
+            if (seconds < 60)
+            {
+                u32 remaining_centiseconds = (milliseconds % 1000) / 10;
+                sprintf(buffer, "  %2d.%02d s", (int)seconds, remaining_centiseconds);
+            }
+            else
+            {
+                u64 minutes = seconds / 60;
+                if (minutes < 60)
+                {
+                    int remaining_seconds = seconds % 60;
+                    sprintf(buffer, "  %2d:%02d m", (int)minutes, remaining_seconds);
+                }
+                else
+                {
+                    u64 hours = minutes / 60;
+                    int remaining_minutes = minutes % 60;
+                    sprintf(buffer, "%4d:%02d h", (int)hours, remaining_minutes);
+                }
+            }
+        }
+    }
+    return buffer;
 }
 
+#define timeToStr(time, buffer) microsecondsToStr(time, buffer)
 
 
 
-enum DebugType
+static int countNbChars(int number)
 {
-    DebugType_Unknown,
-    
-    DebugType_FrameMarker,
-    DebugType_BlockBegin,
-    DebugType_BlockEnd,
-    
-    DebugType_NoMoreDebugEvent,
-};
+    int nbChars = number >= 0 ? 1 : 2;
+    while (number >= 10)
+    {
+        ++nbChars;
+        number = number / 10;
+    }
+    return nbChars;
+}
 
-struct DebugEvent
+#define CYCLE_HASH_SIZE 4096
+inline u32 getCycleHashValue(ProfileEvent event)
 {
-    u64 clock;
-    char* name;
-    char* file;
-    char* function;
-    int line;
-    u32 count;
-    u8 type;
-};
-
-struct DebugState
-{
-    u32 maxEventCount;
-    u32 eventCount;
-    DebugEvent* events;
-    MemoryArena debugArena;
-};
-
-internal_function DebugState initDebugState()
-{
-    DebugState result = {};
-    result.maxEventCount = 512*65536;
-    result.events = pushArray(result.debugArena, DebugEvent, result.maxEventCount+1, pushpNoClear());
+    u32 result = event.line;
+    int i = 0;
+    char* file = event.file;
+    for (char* at = file; *at; ++at)
+    {
+        result = (7 * i * result + 13 * (*at)) % CYCLE_HASH_SIZE;
+        ++i;
+    }
     return result;
 }
 
-static DebugState _debugState = initDebugState();
-#define GetClockCycleCount __rdtsc
-
-#define TIMED_BLOCK_BEGIN(name) DEBUG_EVENT(DebugType_BlockBegin, name)
-#define TIMED_BLOCK_END(name, ...) DEBUG_EVENT(DebugType_BlockEnd, name, __VA_ARGS__)
-#define DEBUG_EVENT(type, name, ...) recordDebugEvent(&_debugState, __FILE__, __FUNCTION__, __LINE__, type, name, __VA_ARGS__)
-#define TIMED_BLOCK(name, ...) TimedBlock _timed_block_ ## __COUNTER__(name, __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
-internal_function void recordDebugEvent(DebugState* debugState, char* file, char* function, int line, DebugType type, char* name, u32 count = 1)
+ProfileState initProfileState()
 {
-    u64 clock = GetClockCycleCount();
-    // TODO(xf4): This is not thread safe
-    if (debugState->eventCount < debugState->maxEventCount)
+    ProfileState result = {};
     {
-        DebugEvent* event = debugState->events + debugState->eventCount;
-        debugState->eventCount++;
+        result.maxEventCount = 512 * 65536;
+        result.events = pushArray(result.profileArena, ProfileEvent, result.maxEventCount + 1, pushpNoClear());
+		static const char* dumpOutput = 0; // "dump_profile.txt";
+        if (dumpOutput)
+        {
+			{
+				volatile static i32 creation_mutex = false;
+				volatile static i32 file_created = false;
+				ScopeMutex(&creation_mutex);
+				if (!file_created)
+				{
+					result.dump = fopen(dumpOutput, "wb");
+					if (result.dump)
+					{
+						//fprintf(result.dump, "{\"traceEvents\":[");
+						fprintf(result.dump, "{\"traceEvents\":[\n]}\n");
+						//fprintf(result.dump, "profile clock type merge count line name file\0");
+						fflush(result.dump);
+					}
+					file_created = true;
+				}
+				else
+					result.dump = fopen(dumpOutput, "a+b");
+			}
+        }
+        result.lastPrintTime = 0;
+        result.startTime = getTickCount();
+    }
+    return result;
+}
+thread_local ProfileState mainProfileState = initProfileState();
+
+
+struct CycleCount
+{
+    u32 hitCount;
+    u64 time;
+    u64 timeOfChildren;
+    char* name;
+    char* file;
+    int line;
+    CycleCount* nextInHash;
+};
+
+struct ProfileFrame
+{
+    ProfileEvent* start;
+    u64 timeOfChildren;
+};
+
+void recordProfileEvent(ProfileState* profileState, char* file, int line, ProfileType type, char* name, u32 count, bool showProfile, bool muteProfile, FILE* output)
+{
+	if (!profileState->maxEventCount) return;
+    u64 clock = getTickCount() - profileState->startTime;
+	thread_local i32 threadid = GetCurrentThreadId();
+	u32 event_index = (u32)-1;
+	if (profileState->eventCount < profileState->maxEventCount)
+		 event_index = (u32)InterlockedIncrement((volatile LONG*)&profileState->eventCount) - 1;
+	if (event_index < profileState->maxEventCount)
+    {
+		ProfileEvent* event = profileState->events + event_index;
         event->clock = clock;
         event->name = name;
         event->file = file;
-        event->function = function;
         event->line = line;
         event->count = count;
         event->type = (u8)type;
@@ -587,91 +784,158 @@ internal_function void recordDebugEvent(DebugState* debugState, char* file, char
             fprintf(stderr, "WARNING: Profile stack is full !!!\n");
         }
     }
+
+    FILE* dump = profileState->dump;
+    if (dump)
+    {
+#if 0
+        u16 file_len = (u16)strlen(file);
+        u16 name_len = (u16)strlen(name);
+        u16 len = sizeof(u64) + sizeof(u8) + sizeof(u8) + sizeof(u32) + sizeof(i32);
+        len += name_len + 1 + file_len + 1;
+        fwrite(&len, sizeof(u16), 1, dump);
+
+        fwrite(&clock, sizeof(u64), 1, dump);
+        fwrite(&type, sizeof(u8), 1, dump);
+        fwrite(&showProfile, sizeof(u8), 1, dump);
+        fwrite(&muteProfile, sizeof(u8), 1, dump);
+        fwrite(&count, sizeof(u32), 1, dump);
+        fwrite(&line, sizeof(i32), 1, dump);
+        //fwrite(&name, sizeof(char*), 1, dump);
+        //fwrite(&file, sizeof(char*), 1, dump);
+        fwrite(name, sizeof(char), name_len + 1, dump);
+        fwrite(file, sizeof(char), file_len + 1, dump);
+		fflush(dump);
+#elif 0
+        fprintf(dump, "%I64u\t%d\t%u\t%d\t%d\t%s\t%d\t%s\n", clock, (int)type, (int)showProfile, (int)muteProfile, count, line, name, file);
+		fflush(dump);
+#else
+        char event_char = ' ';
+        if (type == ProfileType_BlockBegin)
+            event_char = 'B';
+        else if (type == ProfileType_BlockEnd)
+            event_char = 'E';
+        else if (type == ProfileType_FrameMarker)
+            event_char = 'F';
+        else
+            assert(0);
+
+        volatile static i32 sfirst = true;
+		u32 first = sfirst;
+		//if (first)
+			//first = (u32)InterlockedCompareExchange((volatile LONG*)&sfirst, 0, 1);
+
+        {
+			//static i32 mutex = 0;
+			//ScopeMutex(&mutex);
+
+            fseek(dump, -4, SEEK_END);
+            if (!first)
+                fwrite(",", 1, 1, dump);
+            //fprintf(dump, "\n{\"cat\":\"Application\",\"pid\":0,\"tid\":%d,\"ts\":%I64u,\"ph\":\"%c\",\"name\":\"%s\",\"args\":{}},", threadid, clock / 1000, event_char, name);
+            fprintf(dump, "\n{\"cat\":\"Application\",\"pid\":0,\"tid\":%d,\"ts\":%I64u,\"ph\":\"%c\",\"name\":\"%s\",\"args\":{}}\n]}\n", threadid, clock / 1000, event_char, name);
+            if (first)
+                first = false;
+			//fflush(dump);
+		}
+#endif
+    }
+
+    if (type == ProfileType_BlockBegin)
+        profileState->depth++;
+    else if (type == ProfileType_BlockEnd)
+    {
+        profileState->depth--;
+        if (profileState->depth == 0 || showProfile)
+        {
+            printProfile(profileState, true, output, muteProfile);
+        }
+
+        if (profileState->depth < 0)
+        {
+            fprintf(stderr, "ERROR: Profile stack is negative: Too many END EVENTs\n");
+            profileState->depth = 0;
+        }
+    }
+    else if (type == ProfileType_FrameMarker)
+    {
+        printProfile(profileState, true, output, muteProfile);
+        resetProfileState(profileState);
+    }
+
 }
 
-struct TimedBlock
-{
-    char* name;
-    char* file;
-    char* function;
-    int line;
-    int count;
-    TimedBlock(char* name, char* file, char* function, int line, int count = 1) : name(name), count(count), file(file), function(function), line(line)
-    {
-        recordDebugEvent(&_debugState, file, function, line, DebugType_BlockBegin, name);
-    }
-    ~TimedBlock()
-    {
-        recordDebugEvent(&_debugState, file, function, line, DebugType_BlockEnd, name, count);
-    }
-};
 
-
-
-
-struct CycleCount
-{
-    u32 hitCount;
-    u64 cycles;
-    u64 cyclesOfChildren;
-    char* name;
-    char* file;
-    char* function;
-    int line;
-    CycleCount* nextInHash;
-};
-
-struct DebugFrame
-{
-    DebugEvent* start;
-    u64 cyclesOfChildren;
-};
-
-#define CYCLE_HASH_SIZE 4096
-inline u32 getCycleHashValue(DebugEvent event)
-{
-    u32 result = event.line;
-    int i = 0;
-    char* file = event.file;
-    for (char* at = file; *at; ++at)
-    {
-        result = (7 * i * result + 13 * (*at)) % CYCLE_HASH_SIZE;
-        ++i;
-    }
-    return result;
-}
-internal_function void printCycleCounts(DebugState* debugState = &_debugState, FILE* output = stderr)
+void printProfile(ProfileState* profileState, bool mergeLastBlock, FILE* output, bool muteProfile)
 {
     // NOTE(xf4): Do not use TIMED_BLOCK in this function
-    TempMemory temp(debugState->debugArena);
+
+    if (profileState->eventCount <= 0) return;
+    if (!output)
+        output = profileState->output;
+
+    TempMemory temp(profileState->profileArena);
     i32 stackSize = 0;
-    DebugFrame stack[1024];
-    CycleCount** cycleHashTable = pushArray(debugState->debugArena, CycleCount*, CYCLE_HASH_SIZE);
-    DebugFrame* root = stack + stackSize++;
+    ProfileFrame stack[1024];
+    CycleCount** cycleHashTable = pushArray(profileState->profileArena, CycleCount*, CYCLE_HASH_SIZE);
+    ProfileFrame* root = stack + stackSize++;
     ZeroStruct(*root);
-    u64 totalCycles = 0;
-    if (debugState->eventCount)
+    u64 totalTime = 0;
+    i32 rootCount = 0;
+    u32 events_to_skip = 0;
+    i32 event_count = 0;
+    u64 untimed_range = 0;
+
     {
-        DebugEvent first = debugState->events[0];
-        DebugEvent last = debugState->events[debugState->eventCount-1];
-        totalCycles = last.clock - first.clock;
-        root->start = debugState->events;
-        root->cyclesOfChildren = 0;
-    }
-    for (u32 ei = 0; ei < debugState->eventCount; ++ei)
-    {
-        DebugEvent* event = debugState->events + ei;
-        if (event->type == DebugType_BlockBegin)
+        root->start = profileState->events;
+        root->timeOfChildren = 0;
+
+        u32 it = profileState->eventCount - 1;
+        i32 depth = 0;
+        while (it > 0)
         {
-            DebugFrame* frame = stack + stackSize++;
-            frame->start = event;
-            frame->cyclesOfChildren = 0;
+            ProfileEvent* event = profileState->events + it;
+            if (event->type == ProfileType_BlockBegin)
+            {
+                --depth;
+                if (depth <= 0)
+                    break;
+            }
+            else if (event->type == ProfileType_BlockEnd)
+                ++depth;
+
+            --it;
         }
-        else if (event->type == DebugType_BlockEnd)
+        events_to_skip = it;
+
+        event_count = profileState->eventCount - events_to_skip;
+        ProfileEvent first = profileState->events[events_to_skip];
+        ProfileEvent last = profileState->events[profileState->eventCount - 1];
+        totalTime = last.clock - first.clock;
+
+        if (events_to_skip == 0)
         {
-            DebugFrame frame = stack[--stackSize];
-            DebugEvent start = *frame.start;
-            if (!match(event->name, start.name))
+            untimed_range = first.clock - profileState->lastPrintTime;
+            profileState->lastPrintTime = last.clock;
+        }
+    }
+
+    for (u32 ei = events_to_skip; ei < profileState->eventCount; ++ei)
+    {
+        ProfileEvent* event = profileState->events + ei;
+        if (event->type == ProfileType_BlockBegin)
+        {
+            if (stackSize == 1)
+                rootCount++;
+            ProfileFrame* frame = stack + stackSize++;
+            frame->start = event;
+            frame->timeOfChildren = 0;
+        }
+        else if (event->type == ProfileType_BlockEnd)
+        {
+            ProfileFrame frame = stack[--stackSize];
+            ProfileEvent start = *frame.start;
+            if (0 != strcmp(event->name, start.name))
             {
                 fprintf(stderr, "WARNING: Begin/End event names not matching: \"%s\" and \"%s\"\n", start.name, event->name);
             }
@@ -679,45 +943,62 @@ internal_function void printCycleCounts(DebugState* debugState = &_debugState, F
             CycleCount* ccout = cycleHashTable[hashvalue];
             while (ccout)
             {
-                if (ccout->line == start.line && match(ccout->file, start.file) && match(ccout->name, start.name))
+                if (ccout->line == start.line && 0 == strcmp(ccout->file, start.file) && 0 == strcmp(ccout->name, start.name))
                     break;
                 ccout = ccout->nextInHash;
             }
             if (!ccout)
             {
-                ccout = pushStruct(debugState->debugArena, CycleCount);
+                ccout = pushStruct(profileState->profileArena, CycleCount);
                 ccout->name = start.name;
                 ccout->file = start.file;
                 ccout->line = start.line;
-                ccout->function = start.function;
                 ccout->nextInHash = cycleHashTable[hashvalue];
                 cycleHashTable[hashvalue] = ccout;
             }
             ccout->hitCount += event->count;
-            u64 cycles = (event->clock - start.clock);
-            ccout->cycles += cycles;
-            ccout->cyclesOfChildren += frame.cyclesOfChildren;
+            u64 time = (event->clock - start.clock);
+            ccout->time += time;
+            ccout->timeOfChildren += frame.timeOfChildren;
             if (stackSize > 0)
             {
-                DebugFrame* parent = stack + stackSize-1;
-                parent->cyclesOfChildren += cycles;
+                ProfileFrame* parent = stack + stackSize - 1;
+                parent->timeOfChildren += time;
             }
         }
         else
         {
-            assert(0);
+            assert(0); // "Unknown block type";
         }
     }
     if (stackSize != 1)
     {
         fprintf(stderr, "WARNING: perfos stacksize = %d\n", stackSize);
-        for (int i = stackSize-1; i > 0; --i)
+        for (int i = stackSize - 1; i > 0; --i)
         {
             fprintf(stderr, "stack[%d] = %s\n", i, stack[i].start->name);
         }
     }
-    
-    int count = 1; // NOTE(xf4): Because we add the root to the list
+
+    if (mergeLastBlock && events_to_skip + 1 < profileState->eventCount - 1)
+    {
+        if (events_to_skip)
+        {
+            // NOTE(xf4): We remove all events inside the last closed event.
+            profileState->events[events_to_skip + 1] = profileState->events[profileState->eventCount - 1];
+            profileState->eventCount = events_to_skip + 2;
+        }
+        else
+        {
+            profileState->eventCount = 0;
+        }
+    }
+
+
+    if (!output || totalTime <= 0 || muteProfile) return;
+
+    bool needsRoot = rootCount > 1;
+    int count = needsRoot ? 1 : 0; // NOTE(xf4): Because we add a root to the list if there are more than one root.
     for (int h = 0; h < CYCLE_HASH_SIZE; ++h)
     {
         CycleCount* ccount = cycleHashTable[h];
@@ -727,19 +1008,18 @@ internal_function void printCycleCounts(DebugState* debugState = &_debugState, F
             ccount = ccount->nextInHash;
         }
     }
-    
-    CycleCount** ccounts = pushArray(debugState->debugArena, CycleCount*, count, pushpNoClear());
+
+    CycleCount** ccounts = pushArray(profileState->profileArena, CycleCount*, count, pushpNoClear());
     int cindex = 0;
-    if (root->start)
+    if (needsRoot && root->start)
     {
-        CycleCount* ccount = ccounts[cindex++] = pushStruct(debugState->debugArena, CycleCount);
-        DebugEvent* event = root->start;
+        CycleCount* ccount = ccounts[cindex++] = pushStruct(profileState->profileArena, CycleCount);
+        ProfileEvent* event = root->start;
         ccount->name = "#GlobalScope#";
         ccount->file = event->file;
         ccount->line = event->line;
-        ccount->function = event->function;
-        ccount->cycles = totalCycles;
-        ccount->cyclesOfChildren = root->cyclesOfChildren;
+        ccount->time = totalTime;
+        ccount->timeOfChildren = root->timeOfChildren;
         ccount->hitCount = 1;
     }
     for (int h = 0; h < CYCLE_HASH_SIZE; ++h)
@@ -751,15 +1031,15 @@ internal_function void printCycleCounts(DebugState* debugState = &_debugState, F
             ccount = ccount->nextInHash;
         }
     }
-    
-    for (int outer = 0; outer < count-1; ++outer)
+
+    for (int outer = 0; outer < count - 1; ++outer)
     {
         bool sorted = true;
-        for (int inner = 0; inner < count-1; ++inner)
+        for (int inner = 0; inner < count - 1; ++inner)
         {
             CycleCount* a = ccounts[inner];
-            CycleCount* b = ccounts[inner+1];
-            if (a->cycles-a->cyclesOfChildren < b->cycles-b->cyclesOfChildren)
+            CycleCount* b = ccounts[inner + 1];
+            if (a->time - a->timeOfChildren < b->time - b->timeOfChildren)
             {
                 sorted = false;
                 CycleCount tmp = *a;
@@ -770,22 +1050,73 @@ internal_function void printCycleCounts(DebugState* debugState = &_debugState, F
         if (sorted)
             break;
     }
-    
-    
+
     char buffer[1024];
-    fprintf(output, "\nCycle counts: %s\n", cyToStr(totalCycles, buffer));
-    //fprintf(output, "Global scope: %s (%.2f%%)\n", cyToStr(totalCycles-root->cyclesOfChildren, buffer), (float)(totalCycles-root->cyclesOfChildren) / totalCycles * 100);
+    //fprintf(output, "Global scope: %s (%.2f%%)\n", timeToStr(totalTime-root->timeOfChildren, buffer), (float)(totalTime-root->timeOfChildren) / totalTime * 100);
+    int fileMaxLen = 0;
+    int lineMaxLen = 0;
+    int nameMaxLen = 0;
     for (int h = 0; h < count; ++h)
     {
         CycleCount* ccount = ccounts[h];
-        u64 internalCount = ccount->cycles - ccount->cyclesOfChildren;
-        fprintf(output, "%.50s(%4d): ", ccount->file, ccount->line);
-        fprintf(output, "%20s  %s (%6.2f%%)  ", ccount->name, cyToStr(internalCount, buffer), (float)internalCount / totalCycles * 100);
-        fprintf(output, "%s (%6.2f%%)  ", cyToStr(ccount->cycles, buffer), (float)ccount->cycles / totalCycles * 100);
-        fprintf(output, "%s/hit (%6.2f%%) [%d]  ", cyToStr(internalCount/ccount->hitCount, buffer), (float)(internalCount/ccount->hitCount) / totalCycles * 100, ccount->hitCount);
+        int fileLen = (int)strlen(ccount->file);
+        if (fileMaxLen < fileLen)
+            fileMaxLen = fileLen;
+        int lineLen = countNbChars(ccount->line);
+        if (lineMaxLen < lineLen)
+            lineMaxLen = lineLen;
+        int nameLen = (int)strlen(ccount->name);
+        if (nameMaxLen < nameLen)
+            nameMaxLen = nameLen;
+    }
+
+#define PADDING_STR(len, maxlen) for (int i = 0; i < maxlen - len; ++i) fprintf(output, " ")
+
+    int printedCount = fprintf(output, "PROFILER: %d events", event_count);
+    int printedCount2 = 0;
+    if (events_to_skip == 0)
+    {
+        printedCount2 = fprintf(output, " | untimed since last full profile : %s", timeToStr(untimed_range, buffer));
+        if (printedCount2 < 0)
+            printedCount2 = 0;
+    }
+    printedCount += printedCount2;
+    if (printedCount < 0) printedCount = 0;
+    PADDING_STR(printedCount, fileMaxLen + 1 + lineMaxLen + 4 + nameMaxLen + 2);
+    fprintf(output, "     Internal time   ");
+    fprintf(output, "     Total time      ");
+    fprintf(output, "     Internal time/hit  hit count");
+    fprintf(output, "\n");
+
+    for (int h = 0; h < count; ++h)
+    {
+        CycleCount* ccount = ccounts[h];
+        u64 internalCount = ccount->time - ccount->timeOfChildren;
+        int fileLen = (int)strlen(ccount->file);
+        int lineLen = countNbChars(ccount->line);
+        int nameLen = (int)strlen(ccount->name);
+        PADDING_STR(fileLen, fileMaxLen);
+        fprintf(output, "%.*s(%d)", fileLen, ccount->file, ccount->line);
+        PADDING_STR(lineLen, lineMaxLen);
+        fprintf(output, " : ");
+        PADDING_STR(nameLen, nameMaxLen);
+#undef PADDING_STR
+        fprintf(output, "%.*s  %s (%6.2f%%)  ", nameLen, ccount->name, timeToStr(internalCount, buffer), (float)internalCount / totalTime * 100);
+        fprintf(output, "%s (%6.2f%%)  ", timeToStr(ccount->time, buffer), (float)ccount->time / totalTime * 100);
+        fprintf(output, "%s/hit (%6.2f%%) [%d]  ", timeToStr(internalCount / ccount->hitCount, buffer), (float)(internalCount / ccount->hitCount) / totalTime * 100, ccount->hitCount);
         fprintf(output, "\n");
     }
+    fflush(output);
 }
+
+
+void _printMemUsage(MemoryArena& arena, char* name, FILE* output)
+{
+    char memBuff[256];
+    fprintf(output, "memusage (%s): %s\n", name, memToStr(getMemoryUsage(arena), memBuff));
+}
+
+
 #else
 
 #define getTickCount(...) 0
@@ -793,8 +1124,14 @@ internal_function void printCycleCounts(DebugState* debugState = &_debugState, F
 #define TIMED_BLOCK_BEGIN(...)
 #define TIMED_BLOCK_END(...)
 #define printMemUsage(...)
-#define printCycleCounts(...)
+#define _printMemUsage(...)
+#define printProfile(...)
 #define TIMED_BLOCK(...)
+#define TIMED_FUNCTION(...)
+#define TIMED_BLOCK_WITH_PROFILE(...)
+#define TIMED_FUNCTION_WITH_PROFILE(...)
+#define MUTE_PROFILE(...)
+#define resetProfileState(...)
 
 #endif
 

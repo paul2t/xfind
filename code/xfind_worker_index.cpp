@@ -26,6 +26,8 @@ volatile u32 searchInProgress;
 internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 {
 	if (workerLoadIndexShouldStop) return;
+	// Not thread safe TIMED_FUNCTION();
+
 	FileIndexEntry* fileIndex = (FileIndexEntry*)data;
 	FILETIME lastWriteTime = GetLastWriteTime(fileIndex->path.str);
 	if (CompareFileTime(&fileIndex->lastWriteTime, &lastWriteTime))
@@ -70,7 +72,7 @@ internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 {
 	if (workerIndexerShouldStop) return;
-	//u64 ticksStart = getTickCount();
+	// Not thread safe TIMED_FUNCTION();
 
 #if APP_INTERNAL
 	treeTraversalTimeStart = GetTickCount64();
@@ -259,6 +261,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 
 internal void stopFileIndex(State* state)
 {
+	TIMED_FUNCTION();
 	//u64 ticksStart = getTickCount();
 	workerIndexerShouldStop = true;
 	workerLoadIndexShouldStop = true;
@@ -279,6 +282,7 @@ internal void stopFileIndex(State* state)
 
 internal void computeFileIndex(State* state)
 {
+	TIMED_FUNCTION();
 #if APP_INTERNAL
 	indexTimeStart = GetTickCount64();
 #endif

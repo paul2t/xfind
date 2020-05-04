@@ -77,6 +77,7 @@ internal void addEntryToWorkQueue(WorkQueue* queue, WorkQueueCallback* callback,
 
 internal void cleanWorkQueue(WorkQueue* queue, volatile u32* stopper)
 {
+	TIMED_FUNCTION();
 	*stopper = true;
 	finishWorkQueue(queue); // Ensure that the index has been loaded.
 	_WriteBarrier();
