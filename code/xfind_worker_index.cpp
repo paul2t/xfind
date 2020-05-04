@@ -255,8 +255,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 #endif
 	//u64 ticksEnd = getTickCount();
 	//printf("Found %d files in %llums\n", filesSize, (ticksEnd - ticksStart));
-	state->shouldWaitForEvent = false;
-	glfwPostEmptyEvent();
+	post_empty_event(&state->waiting_for_event);
 }
 
 internal void stopFileIndex(State* state)

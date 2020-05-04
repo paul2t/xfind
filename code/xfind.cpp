@@ -477,7 +477,7 @@ static DWORD directory_listener(void* _data)
 
 			AtomicListInsert(state->file_events_list, item, item->next);
 
-			glfwPostEmptyEvent();
+			post_empty_event(&state->waiting_for_event);
 		}
 	}
 }
@@ -574,7 +574,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 
 		b32 isActiveWindow = IsActiveWindow(window);
-		readInputs(window, state.running, state.shouldWaitForEvent, isActiveWindow);
+		readInputs(window, state.running, state.shouldWaitForEvent, isActiveWindow, &state.waiting_for_event);
 		if (!indexingInProgress && !searchInProgress)
 			state.shouldWaitForEvent = true;
 		

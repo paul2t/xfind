@@ -541,15 +541,47 @@ static void reloadFontIfNeeded(String fontFile, float& fontSize)
 	}
 }
 
-static void readInputs(WINDOW window, b32& running, b32& shouldWaitForEvent, b32 isActiveWindow = true)
+static void post_empty_event(volatile b32* waiting_for_event) {
+	if (!waiting_for_event) return;
+	b32 original_value = *waiting_for_event;
+	if (*waiting_for_event)
+	if (original_value) {
+		if (original_value == (u32)InterlockedCompareExchange((LONG volatile *)waiting_for_event, original_value, 0)) {
+			glfwPostEmptyEvent();
+		}
+	}
+}
+
+// @return true if should wait for event.
+static b32 start_waiting_for_event(volatile b32* waiting_for_event) {
+	if (!waiting_for_event) return true;
+	b32 original_value = *waiting_for_event;
+	if (!original_value) {
+		if (original_value == (u32)InterlockedCompareExchange((LONG volatile *)waiting_for_event, original_value, 1)) {
+			return true;
+		}
+	}
+	return original_value;
+}
+
+static void end_waiting_for_event(volatile b32* waiting_for_event) {
+	if (!waiting_for_event) return;
+	b32 original_value = *waiting_for_event;
+	if (original_value) {
+		InterlockedCompareExchange((LONG volatile *)waiting_for_event, original_value, 0);
+	}
+}
+
+static void readInputs(WINDOW window, b32& running, b32& shouldWaitForEvent, b32 isActiveWindow = true, volatile b32* waiting_for_event = 0)
 {
 	TIMED_FUNCTION();
 #if OPENGL
 
-	if (shouldWaitForEvent && !isActiveWindow)
+	if (shouldWaitForEvent && !isActiveWindow && start_waiting_for_event(waiting_for_event))
 	{
 		TIMED_BLOCK("glfwWaitEvents");
 		glfwWaitEvents();
+		end_waiting_for_event(waiting_for_event);
 	}
 	else
 	{

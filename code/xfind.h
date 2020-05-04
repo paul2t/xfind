@@ -133,6 +133,7 @@ struct MainSearchPatternData
 {
 	String pattern = {};
 	volatile i32* resultsSize = 0;
+	volatile b32* waiting_for_event = 0;
 	Match* results = 0;
 	i32 resultsSizeLimit = 0;
 	FileIndex* fileIndex = 0;
@@ -165,6 +166,7 @@ struct State
 	b32 setFocusToSearchInput = false;
 	b32 selectSearchInputText = false;
 	b32 shouldWaitForEvent = false;
+	volatile b32 waiting_for_event = false;
 	i32 selectedLine = 0;
 
 	FileIndex index = {};

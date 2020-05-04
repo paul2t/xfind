@@ -10,7 +10,7 @@ struct WorkerSearchData
 	i32 resultsSizeLimit;
 	b32 trackLineIndex;
 	b32 caseSensitive;
-	volatile b32* shouldWaitForEvent;
+	volatile b32* waiting_for_event;
 };
 
 
@@ -34,8 +34,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		u32 test = InterlockedDecrement(&searchInProgress);
 		DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
 
-		wdata->shouldWaitForEvent = false;
-		glfwPostEmptyEvent();
+		post_empty_event(wdata->waiting_for_event);
 		return;
 	}
 
@@ -164,8 +163,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	u32 test = InterlockedDecrement(&searchInProgress);
 	DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
 
-	wdata->shouldWaitForEvent = false;
-	glfwPostEmptyEvent();
+	post_empty_event(wdata->waiting_for_event);
 }
 
 volatile u32 mainWorkerSearchPatternShouldStop;
@@ -209,7 +207,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				searchData->file = file;
 				searchData->trackLineIndex = false;
 				searchData->caseSensitive = state->config.caseSensitive;
-				searchData->shouldWaitForEvent = &state->shouldWaitForEvent;
+				searchData->waiting_for_event = &state->waiting_for_event;
 
 				InterlockedIncrement(&searchInProgress);
 				addEntryToWorkQueue(queue, workerSearchPattern, searchData);
@@ -239,7 +237,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 				searchData->resultsSizeLimit = resultsSizeLimit;
 				searchData->trackLineIndex = true;
 				searchData->caseSensitive = state->config.caseSensitive;
-				searchData->shouldWaitForEvent = &state->shouldWaitForEvent;
+				searchData->waiting_for_event = &state->waiting_for_event;
 
 				InterlockedIncrement(&searchInProgress);
 				addEntryToWorkQueue(queue, workerSearchPattern, searchData);
@@ -250,8 +248,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 	u32 test = InterlockedDecrement(&searchInProgress);
 	DEBUG_TEST_TIMER(!test, searchTimeStart, searchTime);
 
-	wdata->state->shouldWaitForEvent = false;
-	glfwPostEmptyEvent();
+	post_empty_event(wdata->waiting_for_event);
 }
 
 
