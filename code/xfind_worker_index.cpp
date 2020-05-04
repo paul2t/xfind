@@ -14,10 +14,6 @@ inline void DEBUG_TEST_TIMER(u32 test, volatile u64& start, volatile u64& time)
 #define DEBUG_TEST_TIMER(...)
 #endif
 
-volatile b32 workerSearchPatternShouldStop;
-volatile b32 workerLoadIndexShouldStop;
-volatile b32 workerIndexerShouldStop;
-
 volatile u32 indexingInProgress;
 volatile u32 searchInProgress;
 
@@ -25,7 +21,7 @@ volatile u32 searchInProgress;
 
 internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 {
-	if (workerLoadIndexShouldStop) return;
+	if (queue->should_stop) return;
 	// Not thread safe TIMED_FUNCTION();
 
 	FileIndexEntry* fileIndex = (FileIndexEntry*)data;
@@ -71,7 +67,7 @@ internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 
 internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 {
-	if (workerIndexerShouldStop) return;
+	if (queue->should_stop) return;
 	// Not thread safe TIMED_FUNCTION();
 
 #if APP_INTERNAL
@@ -86,7 +82,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	bool locked = true;
 	while (!TryLockMutex(&fileIndex->mutex.write))
 	{
-		if (workerIndexerShouldStop)
+		if (queue->should_stop)
 		{
 			locked = false;
 			break;
@@ -97,7 +93,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 	{
 		while (fileIndex->mutex.read)
 		{
-			if (workerIndexerShouldStop)
+			if (queue->should_stop)
 			{
 				UnlockMutex(&fileIndex->mutex.write);
 				locked = false;
@@ -117,7 +113,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 
 		for (i32 pi = 0; pi < searchPathsSize; ++pi)
 		{
-			if (workerIndexerShouldStop) break;
+			if (queue->should_stop) break;
 			char _pathbuffer[4096];
 			String searchPath = make_fixed_width_string(_pathbuffer);
 			copy(&searchPath, searchPaths[pi]);
@@ -141,7 +137,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 			i32 stackSize = 1;
 			while (stackSize > 0)
 			{
-				if (workerIndexerShouldStop) break;
+				if (queue->should_stop) break;
 				if (current->found)
 				{
 					if (!isHidden(current) || state->config.showHiddenFiles)
@@ -205,7 +201,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 		FileIndexEntry _tmpe = {};
 		for (FileIndexEntry* ei = fileIndex->firstFile, **prevnext = &fileIndex->firstFile; ei; ei = ei->next)
 		{
-			if (workerIndexerShouldStop) break;
+			if (queue->should_stop) break;
 			++filesSize;
 			if (!ei->seenInIndex)
 			{
@@ -253,24 +249,13 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 #if APP_INTERNAL
 	treeTraversalTime = GetTickCount64() - treeTraversalTimeStart;
 #endif
-	//u64 ticksEnd = getTickCount();
-	//printf("Found %d files in %llums\n", filesSize, (ticksEnd - ticksStart));
 	post_empty_event(&state->waiting_for_event);
 }
 
 internal void stopFileIndex(State* state)
 {
 	TIMED_FUNCTION();
-	//u64 ticksStart = getTickCount();
-	workerIndexerShouldStop = true;
-	workerLoadIndexShouldStop = true;
-	workerSearchPatternShouldStop = true;
-	finishWorkQueue(&state->pool.queue);
-	workerSearchPatternShouldStop = false;
-	workerLoadIndexShouldStop = false;
-	workerIndexerShouldStop = false;
-	//u64 ticksEnd = getTickCount();
-	//printf("%llums to finish the index queue\n", ticksEnd - ticksStart);
+	cleanWorkQueue(&state->pool.queue);
 
 	indexingInProgress = 0;
 	//state->index.filesSize = 0;
@@ -282,9 +267,6 @@ internal void stopFileIndex(State* state)
 internal void computeFileIndex(State* state)
 {
 	TIMED_FUNCTION();
-#if APP_INTERNAL
-	indexTimeStart = GetTickCount64();
-#endif
 
 	stopFileIndex(state);
 

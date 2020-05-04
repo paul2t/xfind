@@ -16,7 +16,7 @@ struct WorkerSearchData
 
 internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 {
-	if (workerSearchPatternShouldStop)
+	if (queue->should_stop)
 		return;
 	// not thread safe TIMED_FUNCTION();
 
@@ -41,7 +41,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	FileIndexEntry* filei = wdata->file;
 	if (filei)
 	{
-		if (workerSearchPatternShouldStop)
+		if (queue->should_stop)
 			return;
 
 		FILETIME lastWriteTime = GetLastWriteTime(filei->path.str);
@@ -115,7 +115,7 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 		char* linestart = content.str;
 		for (int ati = 0; ati < content.size; ++ati)
 		{
-			if (workerSearchPatternShouldStop)
+			if (queue->should_stop)
 				break;
 
 			char* at = content.str + ati;
@@ -166,11 +166,10 @@ internal WORK_QUEUE_CALLBACK(workerSearchPattern)
 	post_empty_event(wdata->waiting_for_event);
 }
 
-volatile u32 mainWorkerSearchPatternShouldStop;
 
 internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 {
-	if (workerSearchPatternShouldStop)
+	if (queue->should_stop)
 		return;
 	// Not thread safe TIMED_FUNCTION();
 
@@ -194,7 +193,7 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 			// Search the file name
 			for (FileIndexEntry* file = state->index.firstFile; file; file = file->next)
 			{
-				if (workerSearchPatternShouldStop)
+				if (queue->should_stop)
 					return;
 
 				WorkerSearchData* searchData = pushStruct(state->searchArena, WorkerSearchData);
@@ -219,8 +218,9 @@ internal WORK_QUEUE_CALLBACK(mainWorkerSearchPattern)
 			// Search the file content.
 			for (FileIndexEntry* file = state->index.firstFile; file; file = file->next)
 			{
-				if (workerSearchPatternShouldStop)
+				if (queue->should_stop)
 					return;
+
 				String filepath = file->path;
 				String content = file->content;
 
@@ -261,8 +261,9 @@ internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* 
 
 	{
 		// Ensure that the index has been loaded. And force the old search to abort.
-		cleanWorkQueue(queue, &workerSearchPatternShouldStop);
+		cleanWorkQueue(queue);
 		*resultsSize = 0;
+		searchInProgress = 0;
 	}
 
 	if (pattern.size > 0)

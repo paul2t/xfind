@@ -21,17 +21,21 @@ struct WorkQueue
 	u32 volatile nextEntryToWrite;
 	u32 volatile nextEntryToRead;
 
+	u32 volatile should_stop;
+
 	HANDLE semaphore;
 
-	WorkQueueEntry entries[4096];
+	WorkQueueEntry* entries;
+	i32 entries_count;
 };
 
 internal b32 executeNextWorkQueueEntry(WorkQueue* queue)
 {
+	if (queue->should_stop) return true;
 	b32 shouldSleep = false;
 
 	u32 originalNextEntryToRead = queue->nextEntryToRead;
-	u32 newNextEntryToRead = (originalNextEntryToRead + 1) % ArrayCount(queue->entries);
+	u32 newNextEntryToRead = (originalNextEntryToRead + 1) % queue->entries_count;
 	if (originalNextEntryToRead != queue->nextEntryToWrite)
 	{
 		u32 index = InterlockedCompareExchange((LONG volatile *)&queue->nextEntryToRead, newNextEntryToRead, originalNextEntryToRead);
@@ -54,6 +58,7 @@ internal void finishWorkQueue(WorkQueue* queue)
 {
 	while (queue->completionGoal != queue->completionCount)
 	{
+		if (queue->should_stop) break;
 		executeNextWorkQueueEntry(queue);
 	}
 
@@ -63,25 +68,40 @@ internal void finishWorkQueue(WorkQueue* queue)
 
 internal void addEntryToWorkQueue(WorkQueue* queue, WorkQueueCallback* callback, void* data)
 {
+	if (queue->should_stop) return;
 	// TODO: Switch to InterlockedCompareExchange eventually so that any thread can add ?
-	u32 newNextEntryToWrite = (queue->nextEntryToWrite + 1) % ArrayCount(queue->entries);
+	u32 newNextEntryToWrite = (queue->nextEntryToWrite + 1) % queue->entries_count;
 	while (newNextEntryToWrite == queue->nextEntryToRead) { executeNextWorkQueueEntry(queue); }
 	WorkQueueEntry *entry = queue->entries + queue->nextEntryToWrite;
 	entry->callback = callback;
 	entry->data = data;
-	++queue->completionGoal;
+	InterlockedIncrement(&queue->completionGoal);
 	_WriteBarrier();
 	queue->nextEntryToWrite = newNextEntryToWrite;
 	ReleaseSemaphore(queue->semaphore, 1, 0);
 }
 
-internal void cleanWorkQueue(WorkQueue* queue, volatile u32* stopper)
+internal void cleanWorkQueue(WorkQueue* queue)
 {
 	TIMED_FUNCTION();
-	*stopper = true;
-	finishWorkQueue(queue); // Ensure that the index has been loaded.
+	queue->should_stop = true;
 	_WriteBarrier();
-	*stopper = false;
+	while (queue->completionGoal != queue->completionCount)
+	{
+		int r = queue->nextEntryToRead;
+		int w = queue->nextEntryToWrite;
+		if (r == w) continue;
+		int value = InterlockedCompareExchange(&queue->nextEntryToRead, w, r);
+		if (r == value)
+		{
+			if (w < r) w += queue->entries_count;
+			InterlockedAdd((volatile LONG*)&queue->completionCount, w - r);
+		}
+	}
+	queue->completionGoal = 0;
+	queue->completionCount = 0;
+	_WriteBarrier();
+	queue->should_stop = false;
 }
 
 
@@ -139,6 +159,8 @@ struct ThreadPool
 internal void initThreadPool(MemoryArena& arena, ThreadPool& pool, i32 nbThreads = 0)
 {
 	pool = {};
+	pool.queue.entries_count = 16 * 4096;
+	pool.queue.entries = pushArray(arena, WorkQueueEntry, pool.queue.entries_count);
 	pool.nbThreads = nbThreads > 0 ? nbThreads : getNumberOfLogicalThreads();
 	pool.data = pushArray(arena, ThreadData, pool.nbThreads);
 	pool.queue.semaphore = CreateSemaphoreEx(0, 0, pool.nbThreads, 0, 0, SEMAPHORE_ALL_ACCESS);
