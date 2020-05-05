@@ -548,6 +548,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #if OPENGL
 	GLFWimage icon[2] = { { 16, 16, xfind_16_map }, { 32, 32, xfind_32_map}, };
 	glfwSetWindowIcon(window, sizeof(icon)/sizeof(GLFWimage), icon);
+	glfwSwapInterval(1);
 #endif
 	ImGuiContext& g = *ImGui::GetCurrentContext();
 	ImGuiIO& io = ImGui::GetIO();
