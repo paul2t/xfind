@@ -194,6 +194,12 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 				}
 				dnext(current);
 			}
+
+			while (stackSize > 0)
+			{
+				dclose(stack + stackSize - 1);
+				--stackSize;
+			}
 		}
 
 		// NOTE(xf4): Remove files that haven't been seen while searching.
