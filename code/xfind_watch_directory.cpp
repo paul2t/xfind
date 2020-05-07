@@ -72,7 +72,8 @@ WORK_QUEUE_CALLBACK(directory_watcher)
 volatile bool g_directory_listener_started = false;
 volatile bool g_directory_listener_stopping = false;
 volatile bool g_directory_listener_should_stop = false;
-void updateWatchedDirectories(State& state)
+
+void stopWatchedDirectories(State& state)
 {
 	if (g_directory_listener_started)
 	{
@@ -82,9 +83,14 @@ void updateWatchedDirectories(State& state)
 		while (g_directory_listener_started) {}
 	}
 	watchdir_stop(state.wd);
+	state.watchArena.Release();
+}
+
+void updateWatchedDirectories(State& state)
+{
+	stopWatchedDirectories(state);
 	if (state.searchPathExists && state.searchPaths && state.searchPathsSize > 0)
 	{
-		state.watchArena.Release();
 		state.watchPaths = pushArray(state.watchArena, char*, state.searchPathsSize);
 		for (i32 i = 0; i < state.searchPathsSize; ++i)
 		{

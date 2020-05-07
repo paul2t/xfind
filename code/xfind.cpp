@@ -320,7 +320,8 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 		if (modifFolders)
 		{
 			state.searchPathsSize = parsePaths(state.arena, state.searchPaths, state.searchPathsSizeMax, state.config.path.str, state.searchPathExists);
-			updateWatchedDirectories(state);
+			if (state.searchPathExists)
+				updateWatchedDirectories(state);
 		}
 
 		if (modifExtensions)
