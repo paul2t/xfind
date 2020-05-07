@@ -534,6 +534,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 #endif
 
 	State state = {};
+	ScopeReleaseVar(state.arena);
 	Config iconfig = readConfig(state.arena);
 
 	// Start directory listener
@@ -610,6 +611,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 		}
 		resetProfileState();
     }
+
+	stopWatchedDirectories(state);
+	cleanWorkQueue(&state.pool.queue);
+	clearFileIndex(&state.index);
 
 	imguiCleanup(window);
     return 0;

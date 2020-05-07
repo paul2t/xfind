@@ -282,3 +282,16 @@ internal void computeFileIndex(State* state)
 
 
 
+void clearFileIndex(FileIndex* fileIndex)
+{
+	FileIndexEntry* next = 0;
+	for (FileIndexEntry* ei = fileIndex->firstFile; ei; ei = next)
+	{
+		next = ei->next;
+		freeFileIndexEntry(ei);
+	}
+	free(fileIndex->filePathHash);
+	*fileIndex = {};
+}
+
+
