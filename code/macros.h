@@ -67,33 +67,89 @@ inline void ZeroSize(void* ptr, memid size)
 
 
 
-#define ScopeExitCreate(ScopeExitName, data) ScopeExitName ScopeExitVarName(ScopeExitName, data)(data)
-#define ScopeExitImplement(ScopeExitName, type, code)										\
-struct ScopeExitName																	\
-{																						\
-    type data;																			\
-    ScopeExitName(type data) : data(data)												\
-    {																					\
-    }																					\
-    ~ScopeExitName()																	\
-    {																					\
-        code																			\
-    }																					\
+
+
+template <typename F>
+struct _ScopeExit
+{
+	_ScopeExit(F f) : f(f) {}
+	~_ScopeExit() { f(); }
+	F f;
 };
 
-#define ScopeExitVarName__(data, ScopeExitName) __##data##__##ScopeExitName
-#define ScopeExitVarName_(data, ScopeExitName) ScopeExitVarName__(data, ScopeExitName)
-#define ScopeExitVarName(data, ScopeExitName) ScopeExitVarName_(data, ScopeExitName)
-
-#define SCOPE_RELEASE_NAME(type) ReleaserOf##type
-#define ScopeReleaseVarNameType(data, type) ScopeExitVarName(SCOPE_RELEASE_NAME(type), data)
-#define SCOPE_RELEASE_IMPL(type) ScopeExitImplement(SCOPE_RELEASE_NAME(type), type*, if (data) { data->Release(); })
-#define ScopeReleaseType(data, type) ScopeExitCreate(SCOPE_RELEASE_NAME(type), data)
+template <typename F>
+_ScopeExit<F> MakeScopeExit(F f)
+{
+	return _ScopeExit<F>(f);
+};
 
 
-// NOTE(xf4): To implement your own scope release you only need : SCOPE_RELEASE_IMPL(MyType)
-// Then you can call ScopeReleaseType(myVar, MyType); to be called on Release() at the end of the current scope.
-// If you don't want to type the type of the variable each time, Just #define MyScopeRelease(var) ScopeReleaseType(var, MyType)
+#define ScopeExitVarName(...) CONCAT(scope_exit_, CONCAT(__LINE__, CONCAT(_, __COUNTER__)))
+#define NamedName(ptr) CONCAT(_named_, ptr)
+
+// Allows to execute code at the end of the current scope.
+//
+// Examples:
+//
+// FILE* f = fopen("test.txt", "w");
+// ScopeExit(if (f) { fclose(f); f = NULL; });
+// == ScopeFClose(f);
+//
+// int* array = new int[16];
+// ScopeExit(delete[] array);
+// == ScopeDeleteArray(array);
+//
+// CATBaseUnknown* unk = ...;
+// ScopeExit(CATSysReleasePtr(unk));
+// == ScopeRelease(unk);
+#define ScopeExit(code) auto ScopeExitVarName() = MakeScopeExit([&]() mutable {code;})
+#define ScopeExitByValue(code) auto ScopeExitVarName() = MakeScopeExit([=]() {code;})
+#define ScopeExitCapture(capture, code) auto ScopeExitVarName() = MakeScopeExit(capture () {code;})
+
+#define _ScopeExitCall(ptr, function) ScopeExit(if (ptr) { function(ptr); (ptr) = 0; })
+#define _ScopeExitCallVar(var, function) ScopeExit(function(&(var)))
+#define _ScopeExitCallNamed(ptr, function) auto** NamedName(ptr) = &ptr; ScopeExit(if ((NamedName(ptr)) && *(NamedName(ptr))) { function(*(NamedName(ptr))); *(NamedName(ptr)) = 0; })
+#define _ScopeExitCallUnNamed(ptr, function) NamedName(ptr) = NULL
+#define _ScopeExitCallValue(ptr, function) ScopeExitByValue(auto* pointer = (ptr); if (pointer) { function(pointer); })
+
+#define _DO_Release(ptr) (ptr)->Release()
+#define ScopeRelease(ptr) _ScopeExitCall(ptr, _DO_Release)
+#define ScopeReleaseVar(var) _ScopeExitCallVar(var, _DO_Release)
+#define ScopeReleaseNamed(ptr) _ScopeExitCallNamed(ptr, _DO_Release)
+#define ScopeUnReleaseNamed(ptr) _ScopeExitCallUnNamed(ptr, _DO_Release)
+#define ScopeReleaseValue(ptr) _ScopeExitCallValue(ptr, _DO_Release)
+
+#define _DO_Destroy(ptr) (ptr)->Destroy()
+#define ScopeDestroy(ptr) _ScopeExitCall(ptr, _DO_Destroy)
+#define ScopeDestroyVar(var) _ScopeExitCallVar(var, _DO_Destroy)
+#define ScopeDestroyNamed(ptr) _ScopeExitCallNamed(ptr, _DO_Destroy)
+#define ScopeUnDestroyNamed(ptr) _ScopeExitCallUnNamed(ptr, _DO_Destroy)
+#define ScopeDestroyValue(ptr) _ScopeExitCallValue(ptr, _DO_Destroy)
+
+#define ScopeDelete(ptr) _ScopeExitCall(ptr, delete)
+#define ScopeDeleteNamed(ptr) _ScopeExitCallNamed(ptr, delete)
+#define ScopeUnDeleteNamed(ptr) _ScopeExitCallUnNamed(ptr, delete)
+#define ScopeDeleteValue(ptr) _ScopeExitCallValue(ptr, delete)
+
+#define ScopeDeleteArray(ptr) _ScopeExitCall(ptr, delete[])
+#define ScopeDeleteArrayNamed(ptr) _ScopeExitCallNamed(ptr, delete[])
+#define ScopeUnDeleteArrayNamed(ptr) _ScopeExitCallUnNamed(ptr, delete[])
+#define ScopeDeleteArrayValue(ptr) _ScopeExitCallValue(ptr, delete[])
+
+#define ScopeFree(ptr) _ScopeExitCall(ptr, free)
+#define ScopeFreeNamed(ptr) _ScopeExitCallNamed(ptr, free)
+#define ScopeUnFreeNamed(ptr) _ScopeExitCallUnNamed(ptr, free)
+#define ScopeFreeValue(ptr) _ScopeExitCallValue(ptr, free)
+
+
+#define ScopeFClose(f) ScopeExit(if (f) { fclose(f); (f) = NULL; })
+#define ScopeCATFClose(file) ScopeExit(CATFClose(file); file = 0);
+
+#define SCOPE_LOCALE(locale, value) char* curLocalSettings = strdup(setlocale(locale, (const char *)NULL)); \
+									setlocale(locale, value); \
+									ScopeExit(if (curLocalSettings) { setlocale(locale, curLocalSettings); free(curLocalSettings); curLocalSettings = 0; });
+
+#define SCOPE_LC_NUMERIC_C() SCOPE_LOCALE(LC_NUMERIC, "C")
 
 
 
