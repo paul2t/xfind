@@ -737,7 +737,13 @@ ProfileState initProfileState()
     }
     return result;
 }
+
+void clear_profile_state(ProfileState& profile_state)
+{
+	profile_state.profileArena.Release();
+}
 thread_local ProfileState mainProfileState = initProfileState();
+//ScopeExit(clear_profile_state(mainProfileState));
 
 
 struct CycleCount
