@@ -341,9 +341,9 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 		}
 	}
 
-	#if APP_INTERNAL
-	ImGui::Text("Debug : Index time %llums (tt:%llu) | Search time %llums", indexTime, treeTraversalTime, searchTime);
-	#endif
+#if APP_INTERNAL
+	ImGui::Text("Debug : Index time %llums (tt:%llu) | Search time %llums | Index Memory %u MB", indexTime, treeTraversalTime, searchTime, g_memory_usage / MegaBytes(1));
+#endif
 
 	// Lauch search if input needed
 	if (!state.needToGenerateIndex && !indexingInProgress && (state.needToSearchAgain || searchModified) && state.searchPathExists)

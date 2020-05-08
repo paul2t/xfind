@@ -16,6 +16,7 @@ inline void DEBUG_TEST_TIMER(u32 test, volatile u64& start, volatile u64& time)
 
 volatile u32 indexingInProgress;
 volatile u32 searchInProgress;
+volatile i64 g_memory_usage;
 
 #define MAX_FILE_PARSED_SIZE (MegaBytes(1)-1)
 
@@ -46,10 +47,13 @@ internal WORK_QUEUE_CALLBACK(workerReloadFileToMemory)
 
 			if (fileIndex->content.memory_size < newSize + 1)
 			{
+				i64 memory_usage_delta = -fileIndex->content.memory_size;
 				fileIndex->content.memory_size = (i32)(newSize * (fileIndex->content.str ? 1.5f : 1.0f)) + 1;
 				if (fileIndex->content.memory_size > MAX_FILE_PARSED_SIZE + 1)
 					fileIndex->content.memory_size = MAX_FILE_PARSED_SIZE + 1;
 				fileIndex->content.str = (char*)realloc(fileIndex->content.str, fileIndex->content.memory_size);
+				memory_usage_delta += fileIndex->content.memory_size;
+				InterlockedAdd64((volatile LONG64*)&g_memory_usage, memory_usage_delta);
 			}
 
 			memid nitemsRead = fread(fileIndex->content.str, 1, newSize, file);
@@ -232,6 +236,7 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 				ei->nextInPathHash = 0;
 				FileIndexEntry* nexte = ei->next;
 
+				InterlockedAdd64((volatile LONG64*)&g_memory_usage, -ei->content.size);
 				freeFileIndexEntry(ei);
 
 				_tmpe.next = nexte;
@@ -292,6 +297,7 @@ void clearFileIndex(FileIndex* fileIndex)
 	}
 	free(fileIndex->filePathHash);
 	*fileIndex = {};
+	g_memory_usage = 0;
 }
 
 
