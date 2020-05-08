@@ -707,7 +707,7 @@ ProfileState initProfileState()
 {
     ProfileState result = {};
     {
-        result.maxEventCount = 512 * 65536;
+        result.maxEventCount = 128 * 65536;
         result.events = pushArray(result.profileArena, ProfileEvent, result.maxEventCount + 1, pushpNoClear());
 		static const char* dumpOutput = 0; // "dump_profile.txt";
         if (dumpOutput)
