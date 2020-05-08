@@ -110,7 +110,7 @@ struct FileIndex
 {
 	FileIndexEntry* firstFile = 0;
 	FileIndexEntry** filePathHash;
-	u32 filePathHashSize = PATH_HASH_SIZE;
+	u32 filePathHashSize = 0;
 	volatile i32 filesSize = 0;
 	volatile b32 modifiedSinceLastSearch = false;
 	MutexRW mutex = {};
