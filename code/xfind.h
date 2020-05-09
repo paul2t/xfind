@@ -75,7 +75,8 @@ struct Config
 	float fontSize = 20.0f;
 	String fontFile;
 	i32 contextLines = 4;
-	bool hideContextLines = false;
+	bool showContextLines = false;
+	bool showContextLinesOnMouse = false;
 
 
 	String path; // Should be first String ! (same order as configKeys)

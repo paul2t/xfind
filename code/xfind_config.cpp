@@ -60,8 +60,10 @@ Config readConfig(MemoryArena& arena)
 				char* end;
 				conf.contextLines = fastStringToU32(line.str + ctxLinesK.size, end);
 			}
-			if (match(line, make_lit_string("hide_context_lines")))
-				conf.hideContextLines = true;
+			if (match(line, make_lit_string("show_context_lines")))
+				conf.showContextLines = true;
+			if (match(line, make_lit_string("show_context_lines_on_mouse")))
+				conf.showContextLinesOnMouse = true;
 			if (match(line, make_lit_string("hide_program")))
 				conf.showProgram = false;
 			if (match(line, make_lit_string("hide_folder_and_ext")))
@@ -119,8 +121,10 @@ void writeConfig(Config conf)
 			fprintf(configFile, "case_sensitive\n");
 		if (conf.contextLines != defaultConf.contextLines)
 			fprintf(configFile, "context_lines=%d\n", conf.contextLines);
-		if (conf.hideContextLines)
-			fprintf(configFile, "hide_context_lines\n");
+		if (conf.showContextLines)
+			fprintf(configFile, "show_context_lines\n");
+		if (conf.showContextLinesOnMouse)
+			fprintf(configFile, "show_context_lines_on_mouse\n");
 
 
 		for (int ki = 0; ki < ArrayCount(configKeys); ++ki)

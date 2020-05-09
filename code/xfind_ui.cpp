@@ -278,6 +278,7 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 	//isWindowHovered = ImGui::IsWindowHovered(ImGuiFocusedFlags_RootAndChildWindows);
 
 	i32 contextLines = state.config.contextLines;
+	bool contextOnMouse = state.config.showContextLinesOnMouse;
 
 	for (i32 ri = 0; ri < resultsSize && ri < resultsSizeLimit; ++ri)
 	{
@@ -357,7 +358,11 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 
 			showHighlightedText(match.line, match.offset_in_line, match.matching_length, true);
 
-			if ((isWindowHoverable) && (!state.config.hideContextLines && contextLines > 0) && (ri == hoverIndex || (hoverIndex < 0 && selected)))
+			bool showContext = isWindowHoverable;
+			showContext = showContext && (state.config.showContextLines && contextLines > 0);
+			showContext = showContext && ((contextOnMouse && (ri == hoverIndex || (hoverIndex < 0 && selected))) || (!contextOnMouse && selected));
+
+			if (showContext)
 			{
 				int nbLines = 0;
 				String ctx = getLineWithContext(match.line, match.file->content, contextLines, nbLines);

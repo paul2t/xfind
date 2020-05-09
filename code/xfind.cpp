@@ -121,9 +121,8 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 				ImGui::EndTooltip();
 			}
 
-			bool showContextLines = !state.config.hideContextLines;
-			if (ImGui::Checkbox("Show context lines", &showContextLines))
-				state.config.hideContextLines = !showContextLines;
+			ImGui::Checkbox("Show context lines", &state.config.showContextLines);
+			ImGui::Checkbox("Show context lines on mouse", &state.config.showContextLinesOnMouse);
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::BeginTooltip();
@@ -194,7 +193,7 @@ static b32 handleInputs(ImGuiIO& io, State& state)
 	b32 searchModified = false;
 
 	if (ImGui::IsKeyPressed(GLFW_KEY_F4, false))
-		state.config.hideContextLines = !state.config.hideContextLines;
+		state.config.showContextLines = !state.config.showContextLines;
 
 	// Keep focus on search input field
 	if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter), false) || ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
