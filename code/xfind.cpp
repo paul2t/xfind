@@ -122,12 +122,18 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 			}
 
 			ImGui::Checkbox("Show context lines", &state.config.showContextLines);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::Text("Show lines above and below the selected line.");
+				ImGui::Text("Press F4 to toggle.");
+				ImGui::EndTooltip();
+			}
 			ImGui::Checkbox("Show context lines on mouse", &state.config.showContextLinesOnMouse);
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::BeginTooltip();
-				ImGui::Text("Show lines above and below the selected/hovered line.");
-				ImGui::Text("Press F4 to toggle.");
+				ImGui::Text("Show lines above and below the hovered line.");
 				ImGui::EndTooltip();
 			}
 
