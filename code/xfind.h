@@ -197,6 +197,7 @@ struct State
 	bool useSSM = true;
 
 	b32 showAbout = false;
+	bool listFiles = false;
 };
 
 #if APP_INTERNAL

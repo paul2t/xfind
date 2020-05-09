@@ -138,6 +138,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 		{
 			if (ImGui::MenuItem("Recompute the index"))
 				state.needToGenerateIndex = true;
+			ImGui::Checkbox("List files", &state.listFiles);
 			ImGui::EndMenu();
 		}
 
@@ -423,7 +424,19 @@ static void handleFrame(WINDOW window, ImGuiContext& g, State& state)
 
 	b32 inputModified = handleInputs(io, state);
 
-	drawResults(state);
+	if (state.listFiles && !state.searchBuffer.size)
+	{
+		ImGui::BeginChild("Files");
+		for (FileIndexEntry* e = state.index.firstFile; e; e = e->next)
+		{
+			ImGui::Text("%d KB  %.*s", e->content.size / 1024, strexp(e->relpath));
+		}
+		ImGui::End();
+	}
+	else
+	{
+		drawResults(state);
+	}
 
 	showAbout(state.showAbout);
 
