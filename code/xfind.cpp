@@ -613,7 +613,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     }
 
 	stopWatchedDirectories(state);
-	cleanWorkQueue(&state.pool.queue);
+	cleanThreadPool(state.pool);
 	clearFileIndex(&state.index);
 
 	imguiCleanup(window);

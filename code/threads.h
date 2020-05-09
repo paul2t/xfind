@@ -22,6 +22,8 @@ struct WorkQueue
 	u32 volatile nextEntryToRead;
 
 	u32 volatile should_stop;
+	u32 volatile should_terminate;
+	u32 volatile running_count;
 
 	HANDLE semaphore;
 
@@ -115,15 +117,27 @@ internal DWORD worker_thread(void* _data)
 {
 	ThreadData* data = (ThreadData*)_data;
 	WorkQueue* queue = data->queue;
+	if (queue->should_terminate) return 0;
+	_ReadWriteBarrier();
+
+	InterlockedIncrement((volatile LONG*)&queue->running_count);
 
 	u32 threadid = GetCurrentThreadId();
 	for (;;)
 	{
 		while (executeNextWorkQueueEntry(queue))
 		{
+			if (queue->should_terminate)
+				goto worker_thread_terminated;
 			WaitForSingleObjectEx(queue->semaphore, INFINITE, FALSE);
+			if (queue->should_terminate)
+				goto worker_thread_terminated;
 		}
 	}
+
+worker_thread_terminated:
+	_ReadWriteBarrier();
+	InterlockedDecrement((volatile LONG*)&queue->running_count);
 
 	return 0;
 }
@@ -168,6 +182,19 @@ internal void initThreadPool(MemoryArena& arena, ThreadPool& pool, i32 nbThreads
 	{
 		createWorkerThread(pool.data + i, &pool.queue);
 	}
+}
+
+static void cleanThreadPool(ThreadPool& pool)
+{
+	pool.queue.should_terminate = true;
+	_ReadWriteBarrier();
+	cleanWorkQueue(&pool.queue);
+	_ReadWriteBarrier();
+	ReleaseSemaphore(pool.queue.semaphore, pool.queue.running_count, 0);
+	while (pool.queue.running_count > 0) {}
+	_ReadWriteBarrier();
+	CloseHandle(pool.queue.semaphore);
+	pool = {};
 }
 
 
