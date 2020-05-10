@@ -392,7 +392,8 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 				//ImVec2 tooltip_pos = g.IO.MousePos + ImVec2(16 * g.Style.MouseCursorScale, 8 * g.Style.MouseCursorScale);
 				ImGui::SetNextWindowPos(tooltip_pos);
 				ImGui::SetNextWindowBgAlpha(g->Style.Colors[ImGuiCol_PopupBg].w);
-				ImGui::BeginTooltipEx(0, true);
+				ImGui::Begin("Context", NULL, ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+				//ImGui::BeginTooltipEx(0, true);
 				//ImGui::BeginTooltip();
 
 				int printedLines = 0;
@@ -411,7 +412,8 @@ internal void showResults(State& state, Match* results, i32 resultsSize, i32 res
 					int breakhere = 1;
 				}
 				//ImGui::Text("%.*s", strexp(ctx));
-				ImGui::EndTooltip();
+				//ImGui::EndTooltip();
+				ImGui::End();
 			}
 		}
 		else
