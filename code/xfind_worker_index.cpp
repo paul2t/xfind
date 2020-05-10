@@ -215,7 +215,11 @@ internal WORK_QUEUE_CALLBACK(workerComputeIndex)
 			++filesSize;
 			if (!ei->seenInIndex)
 			{
-				ScopeMutexWrite(&ei->mutex);
+				// TODO(xf4): Cannot unlock this mutex as ei is being destroyed after this.
+				// Need to make sure that it is not being used after that.
+				// Otherwise lock might wait forever on it. And eventually crash.
+				// Hopefully locking fileIndex->mutex.write should be enough.
+				LockMutexWrite(&ei->mutex);
 				--filesSize;
 
 				if (ei == fileIndex->firstFile)
