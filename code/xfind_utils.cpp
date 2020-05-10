@@ -15,8 +15,8 @@ internal i32 parsePaths(MemoryArena& tempArena, String* paths, i32 pathsMaxSize,
 		String& path = paths[pi];
 		if (path.size > 0 && char_is_slash(path.str[path.size - 1]))
 			path.size--;
-		b32 pathExists = PathFileExists(tempArena, path);
-		allPathsExist = allPathsExist && pathExists;
+		b32 pathIsDir = PathFileIsDirectoryNZ(tempArena, path);
+		allPathsExist = allPathsExist && pathIsDir;
 		//printf("search path: %.*s (%s)\n", strexp(path), pathExists ? "valid" : "invalid");
 	}
 

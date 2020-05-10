@@ -107,11 +107,27 @@ internal b32 PathFileExists(char* path)
     return result;
 }
 
-internal b32 PathFileExists(MemoryArena& arena, String pathNonZero)
+internal b32 PathFileExistsNZ(MemoryArena& arena, String pathNonZero)
 {
 	TempMemory _temp(arena);
 	String path = pushStringZeroTerminated(arena, pathNonZero);
 	b32 result = PathFileExists(path.str);
+	return result;
+}
+
+internal b32 PathFileIsDirectory(char* path)
+{
+	DWORD attr = GetFileAttributesA(path);
+	if (attr == INVALID_FILE_ATTRIBUTES) return false;
+	b32 result = (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+	return result;
+}
+
+internal b32 PathFileIsDirectoryNZ(MemoryArena& arena, String pathNonZero)
+{
+	TempMemory _temp(arena);
+	String path = pushStringZeroTerminated(arena, pathNonZero);
+	b32 result = PathFileIsDirectory(path.str);
 	return result;
 }
 
