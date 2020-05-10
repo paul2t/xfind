@@ -452,7 +452,7 @@ inline void AtomicListInsert(T*& list, T* element, T*&next)
 // Perfos
 //
 
-#if APP_INTERNAL
+#if DEBUG_PROFILE
 
 
 

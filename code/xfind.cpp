@@ -17,6 +17,7 @@
 
 
 #define DEBUG_IMGUI 0
+#define DEBUG_PROFILE 0
 
 #include "resources/liberation-mono.cpp"
 #include "resources/icon.cpp"
@@ -578,15 +579,19 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 	initState(state, iconfig);
 
+#if DEBUG_PROFILE
 	MUTE_PROFILE();
+#endif
 
 	// Main loop
 	while (state.running)
 	{
 		//DEBUG_EVENT(ProfileType_FrameMarker, "FrameMarker");
 
+#if DEBUG_PROFILE
 		u64 ticks_start = getTickCount();
 		TIMED_BLOCK_BEGIN("MainLoop");
+#endif
 
 		if (state.config.fontFile.size)
 			reloadFontIfNeeded(state.config.fontFile, state.config.fontSize);
@@ -620,6 +625,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 		imguiEndFrame(window);
 
+#if DEBUG_PROFILE
 		TIMED_BLOCK_END("MainLoop");
 		u64 ticks_end = getTickCount();
 		if (isActiveWindow && ((ticks_end - ticks_start) / 1000 > 33))
@@ -628,6 +634,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 			int breakhere = 1;
 		}
 		resetProfileState();
+#endif
     }
 
 	stopWatchedDirectories(state);
