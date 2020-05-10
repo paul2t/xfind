@@ -179,7 +179,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 			ImGui::EndMenu();
 		}
 
-	#if APP_INTERNAL
+#if APP_INTERNAL
 		ImGui::PushStyleColor(ImGuiCol_Text, (ImU32)ImColor(1.f, 0.f, 0.f));
 		if (ImGui::BeginMenu("Debug"))
 		{
@@ -188,7 +188,7 @@ static void drawMenuBar(ImGuiIO& io, State& state)
 			ImGui::EndMenu();
 		}
 		ImGui::PopStyleColor();
-	#endif
+#endif
 
 		ImGui::EndMenuBar();
 	}
