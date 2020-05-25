@@ -279,3 +279,78 @@ internal void searchForPatternInFiles(MainSearchPatternData* searchData, State* 
 		addEntryToWorkQueue(queue, mainWorkerSearchPattern, searchData);
 	}
 }
+
+
+
+
+
+
+
+
+
+
+// TODO: faster search algorithm:
+
+
+Index index = create_file_index();
+
+int max_search_results = 4096;
+IndexSearchResult* search_results = new IndexSearchResult[max_search_results]
+int search_results_size;
+search_for_pattern(&index, pattern, search_result, max_search_results, &search_results_size);
+
+
+
+
+
+// for faster search
+struct CharIndex
+{
+	char c0;
+	char c1;
+	u16 positions_size;
+	u16* positions;
+};
+
+struct IndexEntry
+{
+	String content;
+	String content_small_caps;
+	u16 chars_size;
+	CharIndex* chars;
+};
+
+void search_in_file(IndexEntry entry, String search, bool case_sensitive)
+{
+	String content = entry.content;
+	String pattern = search;
+	if (!case_sensitive)
+	{
+		content = entry.content_small_caps;
+		pattern = to_lower(search);
+	}
+
+	char c = pattern[0];
+	for (int ci = 0; ci < entry.chars_size; ++ci)
+	{
+		CharIndex chi = entry.chars[ci];
+		if (c == chi.c0 && (!chi.c1 || c == chi.c1))
+		{
+			for (int pi = 0; pi < chi.posiitons_size; ++pi)
+			{
+				u16 p = chi.positions[pi];
+
+				String text = substr(content, p);
+				if (match_start_insensitive(text, pattern))
+				{
+					add_result(entry, p);
+				}
+			}
+		}
+	}
+}
+
+
+// Even faster
+// for each char, keep the list of files containing at list one of those.
+
